@@ -1,190 +1,275 @@
 """
-inference.py — Pure SAM2 Automatic Segmentation Pipeline
+inference.py — Production-Grade Wardrobe Segmentation Pipeline
+==============================================================
 
-Objective: 
-Take an input image, automatically detect all foreground objects, 
-and extract them as isolated transparent PNGs.
+Architecture:
+  Step 1  rembg (U2Net)  → Remove background, get perfect global silhouette
+  Step 2  CLIPSeg        → Semantic heatmaps for each garment class
+  Step 3  Argmax + Seal  → Divide foreground pixels between garment classes
+  Step 4  Crop & Save    → Transparent PNG per garment item
 
-Logic:
-1. Run SAM2 Auto-Segment.
-2. Filter out masks that are too small or touch too much of the image border (backgrounds).
-3. Deduplicate using Mask IoA (Intersection over Area) so fully enclosed 
-   sub-components (like pockets) are removed.
-4. Composite and save generic PNGs (item_0.png, item_1.png).
+This hybrid approach is optimal because:
+  - rembg perfectly separates foreground from background (no color bias)
+  - CLIPSeg divides the foreground into semantic items (shirt vs pants)
+  - The intersection ensures we never include background pixels in any item
 """
 
-from pathlib import Path
-import time
-from PIL import Image
-from pprint import pprint
-import numpy as np
-import cv2
+import torch
+import multiprocessing
 
-from ml.segmentation.model import SAM2_MODEL
+num_cores = multiprocessing.cpu_count()
+torch.set_num_threads(num_cores)
+torch.set_grad_enabled(False)
+
+import cv2
+import numpy as np
+from PIL import Image
+from pathlib import Path
+from rembg import remove, new_session
+import time
+from pprint import pprint
+
+from ml.segmentation.model import CLIP_PROCESSOR, CLIP_MODEL
 from ml.segmentation.utils import load_image, create_output_directory
 
 OUTPUT_DIRECTORY = "ml/outputs"
 
-# Size filters (fraction of total image area)
-MIN_ITEM_AREA_RATIO = 0.005  # Drops tiny speckles
-MAX_ITEM_AREA_RATIO = 0.98   # Drops entire-image masks
+# ── TUNING CONSTANTS ──────────────────────────────────────────────────────────
+MAX_DIM             = 640    # Max working resolution (speed vs quality)
+CLIPSEG_THRESHOLD   = 0.30   # Min peak confidence to accept a semantic class
+MIN_ITEM_AREA_RATIO = 0.005  # Drop masks smaller than 0.5% of image
+MAX_ITEM_AREA_RATIO = 0.97   # Drop masks covering almost the entire image
+GAUSSIAN_BLUR_SIZE  = 31     # Smooth CLIPSeg boundary seams (must be odd int)
+MORPH_CLOSE_SIZE    = 25     # Bridge small contour gaps (e.g. color-contrast tags)
+PADDING             = 6      # Extra padding around each cropped item
 
-def _compute_mask_ioa(mask_a: np.ndarray, mask_b: np.ndarray) -> float:
-    """
-    Intersection over Area using boolean masks.
-    Returns what fraction of mask_a is completely inside mask_b.
-    """
-    intersection = np.logical_and(mask_a, mask_b).sum()
-    area_a = mask_a.sum()
-    return intersection / area_a if area_a > 0 else 0.0
+# Load rembg session once at module level for speed (avoids reloading per call)
+_REMBG_SESSION = new_session("u2net")
 
-def process_image(image_path: str, output_directory: str = OUTPUT_DIRECTORY):
+
+def _extract_global_alpha(image: Image.Image) -> np.ndarray:
+    """
+    Use rembg (U2Net) to get a clean binary foreground mask.
+    Returns uint8 array of shape (H, W) with values 0 or 255.
+    """
+    result = remove(image, session=_REMBG_SESSION, alpha_matting=False)
+    alpha = np.array(result)[:, :, 3]
+
+    # Smooth edges slightly and re-binarize
+    blurred = cv2.GaussianBlur(alpha, (5, 5), 0)
+    _, binary = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY)
+
+    h, w = binary.shape
+
+    # STEP 1: Morphological close — scale-relative kernel bridges exterior notches
+    # (e.g. tan leather tag creating a U-shaped gap at the top of blue jeans).
+    # Kernel sized to ~5% of the smaller image dimension so it adapts to any resolution.
+    close_radius = max(30, int(min(h, w) * 0.05))
+    close_radius += (close_radius % 2 == 0)   # ensure odd for symmetry
+    bridge_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_radius * 2 + 1, close_radius * 2 + 1))
+    bridged = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, bridge_kernel)
+
+    # STEP 2: Flood-fill from corner — definitively marks the exterior background.
+    # Pad by 1 pixel so the fill seed reaches all image edges.
+    padded = cv2.copyMakeBorder(bridged, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+    flood_fill_mask = np.zeros((padded.shape[0] + 2, padded.shape[1] + 2), dtype=np.uint8)
+    cv2.floodFill(padded, flood_fill_mask, (0, 0), 255)
+
+    # After flood-fill, pixels that are white are BACKGROUND. Invert to get foreground.
+    exterior = padded[1:-1, 1:-1]   # remove the temporary 1px border
+    filled = cv2.bitwise_not(exterior)
+
+    # Combine: foreground from bridged OR foreground from fill inversion
+    filled = cv2.bitwise_or(bridged, filled)
+
+    # STEP 3: Final contour fill to clean up any remaining small interior holes
+    contours, _ = cv2.findContours(filled, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    final = np.zeros_like(filled)
+    cv2.drawContours(final, contours, -1, 255, cv2.FILLED)
+    return final
+
+
+def _get_clipseg_masks(image: Image.Image, prompts: list, img_w: int, img_h: int):
+    """
+    Run CLIPSeg and return (valid_indices, valid_probs as np array).
+    valid_probs has shape (N, img_h, img_w).
+    """
+    inputs = CLIP_PROCESSOR(
+        text=prompts,
+        images=[image] * len(prompts),
+        padding="max_length",
+        return_tensors="pt",
+    )
+
+    with torch.no_grad():
+        outputs = CLIP_MODEL(**inputs)
+
+    logits = outputs.logits                            # (N, H_clip, W_clip)
+    probs  = torch.sigmoid(logits).detach().cpu().numpy()
+
+    valid_indices = []
+    valid_probs   = []
+
+    for i, prompt in enumerate(prompts):
+        resized = cv2.resize(probs[i], (img_w, img_h))
+        peak    = float(np.percentile(resized, 99.5))
+        if peak >= CLIPSEG_THRESHOLD:
+            valid_indices.append(i)
+            valid_probs.append(resized)
+
+    return valid_indices, (np.array(valid_probs) if valid_probs else None)
+
+
+def process_image(image_path: str, output_directory: str = OUTPUT_DIRECTORY) -> dict:
     start_time = time.time()
     create_output_directory(output_directory)
 
-    image     = load_image(image_path)
+    # ── Load & resize ─────────────────────────────────────────────────────────
+    image    = load_image(image_path)  # PIL RGB
     img_w, img_h = image.size
-    img_area  = img_w * img_h
-    image_np  = np.array(image)  # H×W×3 RGB
+
+    if max(img_w, img_h) > MAX_DIM:
+        scale  = MAX_DIM / max(img_w, img_h)
+        img_w  = int(img_w * scale)
+        img_h  = int(img_h * scale)
+        image  = image.resize((img_w, img_h), Image.Resampling.LANCZOS)
+
+    img_area   = img_w * img_h
+    image_np   = np.array(image)    # uint8 RGB (H, W, 3) — kept pristine for compositing
 
     print(f"\n{'='*60}")
     print(f"Segmenting : {Path(image_path).name}")
-    print(f"Image size : {img_w} × {img_h}")
+    print(f"Processing size : {img_w} × {img_h}")
 
     result = {
         "success":         True,
         "image_name":      Path(image_path).name,
         "image_path":      image_path,
         "processing_time": None,
-        "items":           []
+        "items":           [],
     }
     image_stem = Path(image_path).stem
 
-    # ── Step 1: SAM2 automatic segmentation ──────────────────────────────────
-    try:
-        sam_results = SAM2_MODEL.predict(source=image_np, verbose=False)
-        sam_result = sam_results[0]
+    # ── Step 1: rembg — global foreground silhouette ───────────────────────────
+    global_alpha = _extract_global_alpha(image)   # uint8 (H, W)
 
-        if sam_result.masks is None or len(sam_result.masks) == 0:
-            print("SAM2 found no masks.")
-            result.update({"success": False, "error": "SAM2 found no segments"})
-            return result
+    # ── Step 2: CLIPSeg — semantic class detection ────────────────────────────
+    prompts = [
+        "top clothing or shirt",
+        "pants or bottom clothing",
+        "shoes or footwear",
+        "bag or purse",
+    ]
 
-        masks_data = sam_result.masks.data.cpu().numpy().astype(bool)
-        print(f"SAM2 generated {len(masks_data)} raw segments.")
-    except Exception as exc:
-        print(f"SAM2 failed: {exc}")
-        result.update({"success": False, "error": str(exc)})
+    valid_indices, valid_probs = _get_clipseg_masks(image, prompts, img_w, img_h)
+
+    for i, prompt in enumerate(prompts):
+        if i in valid_indices:
+            idx = valid_indices.index(i)
+            peak = float(np.percentile(valid_probs[idx], 99.5))
+            print(f"[{image_stem}] Peak confidence for '{prompt}': {peak:.3f}  ✓")
+        else:
+            print(f"[{image_stem}] Peak confidence for '{prompt}': skip")
+
+    if valid_probs is None:
+        print(f"[{image_stem}] No confident classes — saving whole foreground")
+        # Fallback: save the full U2Net foreground as a single item
+        rgba = np.dstack([image_np, global_alpha])
+        cx, cy, cw, ch = cv2.boundingRect(global_alpha)
+        if cw > 0 and ch > 0:
+            x1, y1 = max(0, cx - PADDING), max(0, cy - PADDING)
+            x2, y2 = min(img_w, cx + cw + PADDING), min(img_h, cy + ch + PADDING)
+            crop = rgba[y1:y2, x1:x2]
+            out  = Image.fromarray(crop, mode="RGBA")
+            fn   = f"{image_stem}_item_0.png"
+            out.save(Path(output_directory) / fn)
+            result["items"] = [{"file_name": fn, "path": str(Path(output_directory) / fn), "label": "item"}]
+        result["processing_time"] = round(time.time() - start_time, 3)
+        result["total_items"] = len(result["items"])
         return result
 
-    # ── Step 2: Filter by size and discard backgrounds ────────────────────────
-    valid_masks = []
-    
-    for mask in masks_data:
-        area  = int(mask.sum())
+    # ── Step 3: Argmax — divide foreground between detected classes ────────────
+    # Argmax ensures every foreground pixel belongs to exactly one garment class
+    argmax_map = np.argmax(valid_probs, axis=0)   # (H, W), values = local index
+
+    kept_items = []
+
+    for local_i, global_i in enumerate(valid_indices):
+        prompt = prompts[global_i]
+
+        # Raw semantic mask for this class
+        semantic_raw = (argmax_map == local_i).astype(np.uint8) * 255
+
+        # Smooth the CLIPSeg seams for organic garment boundaries
+        blurred = cv2.GaussianBlur(semantic_raw, (GAUSSIAN_BLUR_SIZE, GAUSSIAN_BLUR_SIZE), 0)
+        _, semantic_hard = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY)
+
+        # Intersection with global silhouette: NEVER include background
+        # This is the key step — CLIPSeg can bleed into background, rembg prevents this
+        item_mask = cv2.bitwise_and(global_alpha, semantic_hard)
+
+        # Bridge gaps from contrasting features (dark tags on light fabric, etc.)
+        kernel    = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (MORPH_CLOSE_SIZE, MORPH_CLOSE_SIZE))
+        item_mask = cv2.morphologyEx(item_mask, cv2.MORPH_CLOSE, kernel)
+
+        # Re-seal inner holes after closing
+        contours, _ = cv2.findContours(item_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        sealed = np.zeros_like(item_mask)
+        cv2.drawContours(sealed, contours, -1, 255, cv2.FILLED)
+        item_mask = sealed
+
+        # ── Quality gate ──────────────────────────────────────────────────────
+        area  = int(np.count_nonzero(item_mask))
         ratio = area / img_area
+
         if not (MIN_ITEM_AREA_RATIO <= ratio <= MAX_ITEM_AREA_RATIO):
-            continue
-            
-        # Is this a background mask? Check boundary pixels
-        top_border = mask[0, :]
-        bot_border = mask[-1, :]
-        lft_border = mask[:, 0]
-        rgt_border = mask[:, -1]
-        
-        border_pixels = len(top_border) + len(bot_border) + len(lft_border) + len(rgt_border)
-        border_hits   = top_border.sum() + bot_border.sum() + lft_border.sum() + rgt_border.sum()
-        
-        # If >60% of the image border pixels belong to this mask, it's a background
-        if (border_hits / border_pixels) > 0.60:
-            continue
-            
-        valid_masks.append(mask)
-
-    # ── Step 3: Deduplicate — remove fully enclosed parts (pockets, tags) ─────
-    # Sort by mask area (largest first)
-    valid_masks.sort(key=lambda m: m.sum(), reverse=True)
-    kept_masks = []
-    
-    for mask in valid_masks:
-        is_enclosed = False
-        for kept in kept_masks:
-            ioa = _compute_mask_ioa(mask, kept)
-            if ioa > 0.85:  # If mask is 85%+ contained inside a larger kept mask
-                is_enclosed = True
-                break
-                
-        if not is_enclosed:
-            kept_masks.append(mask)
-
-    print(f"Retained {len(kept_masks)} unique items after filtering.")
-
-    # ── Step 4: Composite mask onto RGBA and save ─────────────────────────────
-    if not kept_masks:
-        result.update({"success": False, "error": "No items found after filtering"})
-        return result
-
-    image_rgba = np.array(image.convert("RGBA"))
-
-    for i, mask in enumerate(kept_masks):
-        # Bounding box from mask to crop
-        rows = np.where(mask.any(axis=1))[0]
-        cols = np.where(mask.any(axis=0))[0]
-        if len(rows) == 0 or len(cols) == 0:
-            continue
-        y1, y2 = int(rows.min()), int(rows.max())
-        x1, x2 = int(cols.min()), int(cols.max())
-
-        # Apply mask as alpha — pixels outside mask are fully transparent
-        composited = image_rgba.copy()
-        alpha = (mask.astype(np.uint8) * 255)
-
-        # Smooth the alpha edge to remove jagged pixels
-        alpha = cv2.GaussianBlur(alpha, (5, 5), 0)
-        _, alpha = cv2.threshold(alpha, 127, 255, cv2.THRESH_BINARY)
-        composited[:, :, 3] = alpha
-
-        # Crop to item
-        item_crop = composited[y1:y2, x1:x2]
-
-        # Trim pure padding
-        alpha_ch = item_crop[:, :, 3]
-        cx, cy, cw, ch = cv2.boundingRect(alpha_ch)
-        if cw <= 0 or ch <= 0:
+            print(f"[{image_stem}] '{prompt}' area ratio {ratio:.4f} out of range — skipping")
             continue
 
-        tp  = 4
-        tx1 = max(0, cx - tp)
-        ty1 = max(0, cy - tp)
-        tx2 = min(item_crop.shape[1], cx + cw + tp)
-        ty2 = min(item_crop.shape[0], cy + ch + tp)
+        # ── Compose RGBA ──────────────────────────────────────────────────────
+        # Use np.dstack to cleanly attach the alpha channel to original RGB
+        rgba = np.dstack([image_np, item_mask])
 
-        final_item = Image.fromarray(item_crop[ty1:ty2, tx1:tx2])
+        # Tight crop with padding
+        cx_f, cy_f, cw_f, ch_f = cv2.boundingRect(item_mask)
+        x1 = max(0, cx_f - PADDING)
+        y1 = max(0, cy_f - PADDING)
+        x2 = min(img_w, cx_f + cw_f + PADDING)
+        y2 = min(img_h, cy_f + ch_f + PADDING)
 
-        filename  = f"{image_stem}_item_{i}.png"
+        crop = rgba[y1:y2, x1:x2]
+        if crop.shape[0] < 2 or crop.shape[1] < 2:
+            continue
+
+        # ── Save ─────────────────────────────────────────────────────────────
+        out_img  = Image.fromarray(crop, mode="RGBA")
+        filename = f"{image_stem}_item_{len(kept_items)}.png"
         save_path = Path(output_directory) / filename
-        final_item.save(save_path)
+        out_img.save(save_path)
 
-        result["items"].append({
-            "file_name": filename,
-            "path":      str(save_path),
+        kept_items.append({
+            "file_name":  filename,
+            "path":       str(save_path),
+            "label":      prompt,
+            "area_ratio": round(ratio, 4),
         })
 
+    result["items"]           = kept_items
     result["processing_time"] = round(time.time() - start_time, 3)
-    result["total_items"]     = len(result["items"])
+    result["total_items"]     = len(kept_items)
 
     print(f"Extracted {result['total_items']} items in {result['processing_time']}s")
     for item in result["items"]:
-        print(f"  → {item['file_name']}")
+        print(f"  → {item['file_name']}  ({item['label']})")
 
     return result
 
 
 if __name__ == "__main__":
     test_folder      = Path("ml/test_images")
-    image_extensions = {".jpg", ".jpeg", ".png"}
+    image_extensions = {".jpg", ".jpeg", ".png", ".webp"}
 
     for image_path in sorted(test_folder.iterdir()):
-        if image_path.suffix.lower() in image_extensions:
+        if image_path.suffix.lower() in image_extensions and not image_path.name.startswith("."):
             result = process_image(str(image_path))
             pprint(result)

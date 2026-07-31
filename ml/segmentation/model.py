@@ -1,16 +1,20 @@
 """
-model.py — Loads ML models for the Wardrobe Project.
+model.py — Global model loading for the Wardrobe Segmentation Pipeline.
 
-Architecture: Pure Segmentation
-  - Uses SAM2 (Segment Anything Model 2) AutoMaskGenerator
-  - Automatically finds and segments EVERY object in the image without prompts.
-  - Classification (labeling items as 'shirt' or 'pants') is handled downstream.
+Architecture: rembg (U2Net) + CLIPSeg
+  - rembg   : Removes background to produce a clean global silhouette
+  - CLIPSeg : Zero-shot semantic segmentation to separate individual items
 """
 
-from ultralytics import SAM
+from rembg import new_session
+from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
 
-# ── SAM2 (via Ultralytics) ────────────────────────────────────────────────────
-# sam2.1_s.pt = fast + small.  sam2.1_l.pt = best quality (larger).
-print("Loading SAM2 model for pure segmentation...")
-SAM2_MODEL = SAM("sam2.1_s.pt")
-print("SAM2 loaded successfully.\n")
+print("Loading U2Net (rembg) for background removal...")
+REMBG_SESSION = new_session("u2net")
+print("U2Net loaded.\n")
+
+print("Loading CLIPSeg for semantic item separation...")
+CLIP_PROCESSOR = CLIPSegProcessor.from_pretrained("CIDAS/clipseg-rd64-refined")
+CLIP_MODEL     = CLIPSegForImageSegmentation.from_pretrained("CIDAS/clipseg-rd64-refined")
+CLIP_MODEL.eval()
+print("CLIPSeg loaded.\n")
