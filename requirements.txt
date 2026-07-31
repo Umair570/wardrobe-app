@@ -1,21 +1,57 @@
 # Backend & API (Mahad)
-fastapi
-uvicorn[standard]
-python-multipart
-pymongo
-motor
-pydantic
-pydantic-settings
+# fastapi
+# uvicorn[standard]
+# python-multipart
+# pymongo
+# motor
+# pydantic
+# pydantic-settings
 
 # ML / CV (Umair)
-rembg
-torch
-torchvision
-transformers
-pillow
-numpy
+# rembg
+# torch
+# torchvision
+# transformers
+# pillow
+# numpy
 
-# Chatbot & Integrations (Abdulrehman)
-openai
-python-dotenv
-requests
+####################################################
+# ==========================
+# Deep Learning
+# ==========================
+torch>=2.2.0
+torchvision>=0.17.0
+
+# ==========================
+# Hugging Face
+# ==========================
+transformers>=4.40.0
+accelerate>=0.29.0
+safetensors>=0.4.3
+
+# ==========================
+# Segmentation (SAM2 via Ultralytics)
+# ==========================
+ultralytics>=8.2.0
+
+# ==========================
+# Image Processing
+# ==========================
+Pillow>=10.2.0
+opencv-python>=4.9.0
+numpy>=1.26.4
+
+# ==========================
+# Utilities
+# ==========================
+matplotlib>=3.8.4
+tqdm>=4.66.2
+
+####################################################
+
+
+
+# # Chatbot & Integrations (Abdulrehman)
+# openai
+# python-dotenv
+# requests

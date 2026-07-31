@@ -70,3 +70,33 @@ Desktop.ini
 *.njsproj
 *.sln
 *.sw?
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Hugging Face Cache
+.cache/
+huggingface/
+
+# Outputs
+ml/outputs/*
+!ml/outputs/.gitkeep
+
+# Test Images
+ml/test_images/*
+!ml/test_images/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
