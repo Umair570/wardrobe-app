@@ -1,8 +1,7 @@
-# AI Wardrobe — Frontend (wireframe pages + auth, sidebar nav, stats, chatbot)
+# AI Wardrobe — Frontend
 
 Started from the 8-screen wireframe-matched build, then restyled with a
-modern indigo/slate/amber/coral palette and extended with four features:
-authentication, a left sidebar navigation drawer, a "Most Viewed / Most Worn"
+modern indigo/slate/amber/coral palette and extended with many features eg authentication, a left sidebar navigation drawer, a "Most Viewed / Most Worn"
 stats carousel on Home, and a floating chatbot dock.
 
 ## Run it
@@ -12,24 +11,6 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # production build into dist/
 ```
-
-## What changed from the wireframe-only version
-
-### Design system restyle
-- `tailwind.config.js` / `src/index.css` — same class names as before
-  (`ink`, `soft`, `panel`, `.eyebrow`, `.tag`, `.btn-primary`, `.field`,
-  etc.) now resolve to the modern palette instead of pure monochrome:
-  - Slate `#1E293B` (primary text/dark surfaces)
-  - Indigo `#3B82F6` (primary actions/links)
-  - Amber `#F59E0B` (secondary accent, `.btn-accent`)
-  - Coral `#EF4444` (destructive actions/errors)
-  - Canvas `#F8FAFC` (background)
-  - Type: Space Grotesk (headings), Inter (body), IBM Plex Mono (data labels)
-  - Rounded corners, shadows, and hover/active micro-interactions added
-    throughout (cards lift on hover, buttons press on click, etc.)
-- Because pages used semantic class names rather than raw colors, this
-  restyle didn't require editing every page individually — just the design
-  tokens and shared component classes.
 
 ### Feature 1 — Authentication
 - `src/api/authApi.js` — mock signup/login/session, **plaintext,
@@ -71,14 +52,6 @@ npm run build    # production build into dist/
   upload ("Item added successfully"), item removal, and outfit save.
 
 ## Mobile responsiveness
-- Sidebar + bottom nav cover navigation on small screens; horizontal tabs
-  removed entirely.
-- Wardrobe grid: 2 columns on mobile → 3 on tablet → 4 on desktop.
+- Sidebar + bottom nav cover navigation on small screens.
 - Chatbot button repositions above the bottom nav on mobile so nothing
   overlaps.
-
-## Known gaps / honest notes
-- Auth is a mock. Do not ship it as-is — see the comment block at the top
-  of `authApi.js`.
-- The chatbot dock's replies are a placeholder rule-based mock, same as the
-  existing AI Stylist page — not real AI.
