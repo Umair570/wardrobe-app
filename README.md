@@ -1,136 +1,166 @@
-# AI Wardrobe Assistant — ML Pipeline (MVP)
+# AI Wardrobe Assistant - MVP
 
-This repository contains the Machine Learning (CV/NLP) engine for the AI Wardrobe App MVP. The pipeline is responsible for taking raw photos of clothing (such as flatlays, bed-lays, or selfies), perfectly extracting each garment from the background, and dynamically analyzing it to produce rich fashion metadata (category, style, color, pattern, etc.).
+An AI-powered wardrobe application where users upload clothing photos, organize detected garments into a digital wardrobe, receive outfit suggestions, and visualize selected clothing.
 
----
+## Current MVP status
 
-## 🧠 Pipeline Architecture
+| Area | Owner | Status | Notes |
+| --- | --- | --- | --- |
+| Segmentation and classification | Umair | Implemented | CLIPSeg + SAM2 segmentation, FashionCLIP metadata classification, and color extraction are available in `ml/`. |
+| Backend and database | Mahad | Pending integration | FastAPI, database connection, upload/storage, wardrobe endpoints, and app router mounting are still required. |
+| Main screen and wardrobe UI | Ayesha | Pending integration | Frontend project and API-connected screens are still required. |
+| Chatbot and visualization | Abdulrehman | Foundation complete | OpenRouter-backed chatbot, mock wardrobe context, visualization architecture, and Gemini/Qwen factory foundation are ready for integration. |
 
-The Machine Learning engine is broken into two sequential modules orchestrated by `ml/pipeline.py`.
+## Features
 
-### 1. Segmentation (`ml/segmentation`)
-Converts noisy, poorly-lit images into isolated, transparent PNG items.
-* **CLIPSeg**: Runs first to generate a coarse semantic heatmap of clothing items (e.g., locating the "pants" vs the "shirt"). It maps out bounding boxes for these regions.
-* **SAM2 (Segment Anything Model 2 - Tiny)**: An extremely powerful zero-shot segmentation model by Ultralytics. SAM2 receives the bounding boxes from CLIPSeg and traces completely pixel-perfect contours around the clothing. 
-  * *Why SAM2 over U2Net/RemBG?* SAM2 flawlessly understands overlapping garments, shadows, and low-contrast flatlays (e.g., black jeans on a dark grey bed), which traditionally break standard background removers.
+- Upload a clothing image.
+- Segment clothing items from the image background.
+- Classify garment category, type, style, season, pattern, and color.
+- Save classified items to a digital wardrobe.
+- Ask the chatbot for outfit suggestions using wardrobe context.
+- Visualize selected garments with a simple 2D overlay; AI image generation can be added later through the provider factory.
 
-### 2. Classification (`ml/classification`)
-Takes the segmented transparent PNGs and performs zero-shot feature extraction.
-* **FashionCLIP**: A HuggingFace vision-language model trained exclusively on fashion catalogs. It analyzes the garment to extract zero-shot features across multiple categories (e.g., `Category: Sweater`, `Type: Hoodie`, `Style: Streetwear`, `Season: Spring/Fall`, `Pattern: Plaid/Solid/Graphic`).
-* **KMeans HSV Color Extraction**: A custom algorithm running in the HSV color space. It isolates only the foreground pixels of the clothing and strongly weights "saturation" and "cluster volume." This prevents the algorithm from accidentally tagging the inside of a white collar or a grey washing tag as the dominant color of a blue jacket. The extracted color is mathematically mapped to a strict bank of **71 standard fashion colors**.
-
----
-
-## 📁 Directory Structure
+## Project structure and ownership
 
 ```text
 wardrobe-app/
-│
-├── requirements.txt                   # Strict ML dependencies (torch, ultralytics, etc.)
-│
-└── ml/
-    ├── pipeline.py                    # THE MAIN ENTRYPOINT (Use this)
-    │
-    ├── segmentation/
-    │   ├── model.py                   # Loads SAM2 and CLIPSeg into memory
-    │   ├── inference.py               # Houses process_image() logic
-    │   └── utils.py                   # Image loading & folder creation
-    │
-    ├── classification/
-    │   ├── model.py                   # Loads FashionCLIP and the 71-Color Dictionary
-    │   └── inference.py               # Houses classify_item() logic
-    │
-    ├── test_images/                   # Upload raw testing jpegs here
-    └── outputs/                       # Segmented PNGs are dumped here
+|
+|- README.md                              # Shared project setup, status, and integration guide
+|- requirements.txt                       # ML + lightweight FastAPI/chatbot dependencies
+|- .env                                  # Local API keys only; ignored by Git
+|
+|- ml/                                    # [Umair] ML/CV pipeline
+|  |- pipeline.py                         # process_wardrobe_upload() unified ML entry point
+|  |- segmentation/
+|  |  |- model.py                         # CLIPSeg and SAM2 model loading
+|  |  |- inference.py                     # Segmentation, cutout creation, and PNG output
+|  |  `- utils.py
+|  |- classification/
+|  |  |- model.py                         # FashionCLIP and color palette
+|  |  `- inference.py                     # Metadata and dominant-color extraction
+|  `- test_images/                        # Local test images (ignored by Git)
+|
+|- backend/
+|  |- app/
+|  |  |- main.py                          # [Mahad] FastAPI app and router mounting - pending
+|  |  |- database/                        # [Mahad] MongoDB models/connection - pending
+|  |  |- routes/
+|  |  |  |- upload.py                     # [Mahad] Upload endpoint - pending
+|  |  |  |- wardrobe.py                   # [Mahad] Wardrobe endpoints - pending
+|  |  |  |- chatbot.py                    # [Abdulrehman] POST /chat router - ready to mount
+|  |  |  `- visualization.py              # [Abdulrehman + Mahad] Visualization endpoint - pending
+|  |  `- services/
+|  |     |- segmentation_service.py       # [Mahad + Umair] ML bridge - pending
+|  |     |- classification_service.py     # [Mahad + Umair] ML bridge - pending
+|  |     |- chatbot_service.py            # [Abdulrehman] OpenRouter chatbot service - implemented
+|  |     |- image_generation_service.py   # [Abdulrehman] Gemini/Qwen factory foundation - implemented
+|  |     `- visualization_service.py      # [Abdulrehman] Visualization orchestration - pending
+|  `- tests/
+|     `- test_image_generation_service.py # [Abdulrehman] Factory tests
+|
+|- frontend/                              # [Ayesha] React/UI project - pending setup
+`- docs/
+   |- architecture.md                     # Chatbot/visualization MVP decisions
+   `- api.md                              # [Mahad + team] API contract - pending
 ```
 
----
+## Abdulrehman's completed work
 
-## 🚀 Setup & Installation
+### Chatbot foundation
 
-The ML pipeline requires Python 3.10+ and uses PyTorch.
+- Added `POST /chat` in `backend/app/routes/chatbot.py`.
+- Added `ChatbotService` in `backend/app/services/chatbot_service.py`.
+- Uses OpenRouter with the local `OPENROUTER_API_KEY` and `LLM_MODEL` values.
+- Uses temporary mock wardrobe data until the real wardrobe API is available.
+- Creates a compact wardrobe-aware prompt using item ID, category, type, color, and tags.
+- Handles missing settings, provider errors, empty messages, and unusable free-model replies.
+- Validated with outfit suggestion, clothing-match, and wardrobe-list questions.
 
-1. **Create Virtual Environment:**
-   ```bash
-   python -m venv venv
-   source venv/Scripts/activate      # On Windows
-   # source venv/bin/activate        # On Mac/Linux
-   ```
+### Visualization foundation
 
-2. **Install Dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+- Documented the MVP fallback: a static body template with transparent segmented garment PNGs positioned by CSS.
+- Added the supervisor-requested `ImageGenerator` abstraction and `ImageGenerationFactory`.
+- Added Gemini and Qwen placeholder implementations. They currently return placeholder text; live API calls must be added after a provider is selected and its key is available.
+- Added four unit tests covering model selection, case-insensitivity, unknown providers, and generation delegation.
 
-*(Note: When you run the pipeline for the very first time, HuggingFace and Ultralytics will automatically download their model weights (`sam2_t.pt` and `fashion-clip`) directly to your system cache. You need an active internet connection on the first run).*
+## Local setup
 
----
+Create and activate a virtual environment:
 
-## 💻 How to Run (For Backend Integrators)
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
 
-Backend developers (e.g., FastAPI) **should not** call the segmentation or classification scripts manually. You should only interact with the unified orchestrator: `process_wardrobe_upload`.
+For chatbot/backend work, install only the lightweight dependencies:
 
-### Example Integration
+```powershell
+python -m pip install fastapi uvicorn httpx python-dotenv
+```
+
+> Do not install the full ML requirements unless you are working on Umair's pipeline; those dependencies include large model packages.
+
+Create a local `.env` file in the repository root:
+
+```env
+LLM_PROVIDER=openrouter
+LLM_MODEL=openrouter/free
+OPENROUTER_API_KEY=your_key_here
+```
+
+Never commit `.env` or API keys.
+
+## Test the current chatbot route
+
+The backend app is not mounted in `main.py` yet. Test the chatbot route directly:
+
+```powershell
+python -c "from fastapi import FastAPI; from fastapi.testclient import TestClient; from backend.app.routes.chatbot import router; app = FastAPI(); app.include_router(router); response = TestClient(app).post('/chat', json={'message': 'What should I wear today?'}); print(response.status_code); print(response.json())"
+```
+
+Expected result: `200` and a reply based only on the mock wardrobe items.
+
+Test the image generation factory:
+
+```powershell
+python -m unittest backend.tests.test_image_generation_service -v
+```
+
+Expected result: four passing tests.
+
+## Required integration contract
+
+Mahad's wardrobe endpoint must expose the following fields so the chatbot and visualization can use real data:
+
+```json
+{
+  "id": "wardrobe-item-id",
+  "category": "shirt",
+  "type": "t-shirt",
+  "color": "black",
+  "tags": ["casual", "solid"],
+  "segmentation_url": "/uploads/item.png"
+}
+```
+
+The final FastAPI app must mount the chatbot router:
 
 ```python
-from ml.pipeline import process_wardrobe_upload
+from backend.app.routes import chatbot
 
-# Call the pipeline synchronously. 
-# WARNING: If using FastAPI, use run_in_threadpool to prevent event loop blocking.
-result = process_wardrobe_upload("ml/test_images/image 2.jpg")
-
-print(result)
+app.include_router(chatbot.router)
 ```
 
-### Expected Output Payload (The JSON Schema)
-The unified function returns a strict payload ready to be parsed into NoSQL documents:
+## Next integration order
 
-```json
-{
-  "success": true,
-  "image_source": "image 2.jpg",
-  "total_items": 1,
-  "processing_time_sec": 3.42,
-  "items": [
-    {
-      "segmentation_file": "image 2_item_0.png",
-      "segmentation_path": "ml/outputs/image 2_item_0.png",
-      "area_ratio": 0.24,
-      "category": "sweater",
-      "type": "hoodie",
-      "style": "streetwear",
-      "season": "spring/fall",
-      "pattern": "solid",
-      "color": "beige",
-      "tags": ["beige", "hoodie", "solid", "spring/fall", "streetwear", "sweater"],
-      "confidence_scores": {
-        "category": 0.98,
-        "type": 0.95,
-        "style": 0.65,
-        "season": 0.81,
-        "pattern": 0.99
-      }
-    }
-  ]
-}
-```
+1. Mahad creates and mounts the FastAPI app, upload flow, database, and wardrobe API.
+2. Umair's ML pipeline returns segmented PNGs and metadata to the backend upload flow.
+3. Abdulrehman replaces chatbot mock data with Mahad's real wardrobe records and adds a visualization endpoint.
+4. Ayesha connects the frontend upload, wardrobe, chatbot, and visualization screens to the API.
+5. The team runs end-to-end testing: upload -> classify -> wardrobe -> chatbot -> visualization.
 
-### Failure Output Payload
-If the user uploads a blurry photo or an image with no detectable clothing, the pipeline safely returns an error schema:
+## MVP boundaries
 
-```json
-{
-  "success": false,
-  "error": "The image is too blurry. Please upload a clear photo of the clothing.",
-  "code": "BLURRY_IMAGE"  // Example codes: BLURRY_IMAGE, NO_CLOTHING, SEG_ERROR
-}
-```
-
----
-
-## 🛡️ Edge Cases Handled
-
-The `ml/pipeline.py` is fortified to prevent API crashes:
-1. **Blur Rejection:** Runs an OpenCV Laplacian Variance check. If the user uploads a highly out-of-focus image, it instantly rejects it with `code: BLURRY_IMAGE`.
-2. **Missing Clothing:** If CLIPSeg fails to identify any clothing in the photo (e.g., the user uploaded a picture of a car), the pipeline safely returns `success: False` with `code: NO_CLOTHING`.
-3. **RAM Threshold:** Designed to operate on CPU instances, though it requires at least **2GB to 4GB of Server RAM** to hold both FashionCLIP and SAM2 in memory concurrently.
+- The current visualization MVP is a 2D overlay, not a full virtual try-on system.
+- Gemini/Qwen image generation is an optional enhancement and must retain the overlay fallback.
+- No models are trained from scratch; the project uses pretrained models.
