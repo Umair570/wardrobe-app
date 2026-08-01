@@ -23,8 +23,7 @@ npm run build    # production build into dist/
 ### Feature 2 — Sidebar navigation
 - `src/components/SidebarNav.jsx` — slide-in drawer (Home, Upload Item,
   View Wardrobe, AI Stylist, Recommended Outfits, Log Out), triggered by a
-  menu icon in `src/components/Nav.jsx` (now a slim top bar instead of
-  horizontal tabs).
+  menu icon in `src/components/Nav.jsx` 
 - `src/components/BottomNav.jsx` — mobile-only fixed bottom bar (Home,
   Wardrobe, floating "+" add button, Menu) per the mobile responsiveness
   requirement; desktop uses the sidebar only.
@@ -38,14 +37,6 @@ npm run build    # production build into dist/
 ### Feature 4 — Chatbot dock
 - `src/components/ChatbotDock.jsx` — floating button, bottom-right (raised
   above the mobile bottom nav on small screens), opens a chat panel.
-- `src/api/chatbotApi.js` — the **only file your partner needs to edit**.
-  `sendMessage(message, { history, wardrobeItems })` is currently a mock
-  that delegates to the same rule-based responder as the full AI Stylist
-  page; swap its body for the real backend call.
-- Decision made explicitly (see comment in `App.jsx`): the full "AI Stylist"
-  page was **kept**, reachable from the sidebar and via the dock's "Expand"
-  button — not removed — since Recommended Outfits and Outfit Visualization
-  both link through it.
 
 ### Toast notifications
 - `src/components/ToastProvider.jsx` — `useToast()` hook, wired into item
