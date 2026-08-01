@@ -1,21 +1,13 @@
-# Backend & API (Mahad)
-fastapi
-uvicorn[standard]
-python-multipart
-pymongo
-motor
-pydantic
-pydantic-settings
-
-# ML / CV (Umair)
-rembg
-torch
-torchvision
-transformers
-pillow
-numpy
-
-# Chatbot & Integrations (Abdulrehman)
-openai
-python-dotenv
-requests
+# ==========================
+# ML / CV Modules (Umair)
+# ==========================
+torch>=2.2.0
+torchvision>=0.17.0
+transformers>=4.40.0
+accelerate>=0.29.0
+safetensors>=0.4.3
+ultralytics>=8.2.0
+Pillow>=10.2.0
+opencv-python>=4.9.0
+numpy>=1.26.4
+scikit-learn>=1.4.0

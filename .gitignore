@@ -2,7 +2,69 @@ node_modules/
 .env
 dist/
 build/
-__pycache__/
-*.pyc"
+.next/
+out/
+coverage/
+.nuxt/
 uploads/
+
+# Machine Learning & Data
+*.pt
+*.pth
+*.h5
+*.onnx
+*.pkl
+*.model
+ml/outputs/
+ml/test_images/temp*
+datasets/
+models/
+
+# OS/System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
 venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Hugging Face Cache
+.cache/
+huggingface/
+
+# Outputs
+ml/outputs/*
+!ml/outputs/.gitkeep
+
+# Test Images
+ml/test_images/*
+!ml/test_images/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
