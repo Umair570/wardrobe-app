@@ -91,12 +91,11 @@
 //   )
 // }
 
-
-import { Sparkles, Upload, Shirt, MessageSquare, ArrowRight, Layers, Sliders, ShieldCheck } from 'lucide-react'
+import StatsCarousel from '../components/StatsCarousel';
+import { Sparkles, Upload, Shirt, MessageSquare, ArrowRight, Layers } from 'lucide-react';
 
 export default function HomePage({ onNavigate, items = [] }) {
-  const totalItems = items.length
-  const recentlyAdded = items.slice(0, 4)
+  const totalItems = items.length;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8 space-y-12">
@@ -173,7 +172,12 @@ export default function HomePage({ onNavigate, items = [] }) {
         </div>
       </section>
 
-      {/* --- DASHBOARD STATS & QUICK ACCESS (FILLING EMPTY SPACE) --- */}
+      {/* --- STATS CAROUSEL (RESTORED HERE) --- */}
+      <section>
+        <StatsCarousel items={items} />
+      </section>
+
+      {/* --- DASHBOARD STATS & QUICK ACCESS --- */}
       <section className="grid sm:grid-cols-3 gap-6">
         <div 
           onClick={() => onNavigate('wardrobe')}
@@ -253,5 +257,5 @@ export default function HomePage({ onNavigate, items = [] }) {
       </section>
 
     </div>
-  )
+  );
 }
