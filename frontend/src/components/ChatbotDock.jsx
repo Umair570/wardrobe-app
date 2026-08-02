@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { sendMessage } from '../api/chatbotApi'
+import ChatOutfitSuggestions from './ChatOutfitSuggestions'
 
 const WELCOME = {
   role: 'ai',
-  text: "Hi! I'm your AI Stylist. Ask me what to wear, or what pairs well with something in your wardrobe.",
+  text: "Hi! I'm your AI Stylist. Ask what to wear today — I'll suggest a complete outfit from your wardrobe with visualize options for each piece.",
+  recommendedItems: [],
 }
 
-export default function ChatbotDock({ items, onExpand }) {
+export default function ChatbotDock({ items, onExpand, onVisualizeItem, onVisualizeOutfit }) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([WELCOME])
   const [input, setInput] = useState('')
@@ -27,13 +29,23 @@ export default function ChatbotDock({ items, onExpand }) {
     e.preventDefault()
     const text = input.trim()
     if (!text || sending) return
-    const nextHistory = [...messages, { role: 'user', text }]
-    setMessages(nextHistory)
+    setMessages((prev) => [...prev, { role: 'user', text }])
     setInput('')
     setSending(true)
-    const reply = await sendMessage(text, { history: nextHistory, wardrobeItems: items })
-    setMessages((prev) => [...prev, { role: 'ai', text: reply }])
+
+    const { reply, recommendedItems } = await sendMessage(text, { wardrobeItems: items })
+    setMessages((prev) => [...prev, { role: 'ai', text: reply, recommendedItems }])
     setSending(false)
+  }
+
+  const handleVisualizeItem = (id) => {
+    onVisualizeItem?.(id)
+    setOpen(false)
+  }
+
+  const handleVisualizeOutfit = (ids) => {
+    onVisualizeOutfit?.(ids)
+    setOpen(false)
   }
 
   return (
@@ -59,11 +71,11 @@ export default function ChatbotDock({ items, onExpand }) {
       </button>
 
       {open && (
-        <div className="fixed bottom-[168px] md:bottom-24 right-5 md:right-6 z-40 w-[calc(100%-2.5rem)] sm:w-full max-w-sm h-[480px] max-h-[65vh] panel flex flex-col overflow-hidden animate-fade-slide-in">
+        <div className="fixed bottom-[168px] md:bottom-24 right-5 md:right-6 z-40 w-[calc(100%-2.5rem)] sm:w-full max-w-sm h-[520px] max-h-[70vh] panel flex flex-col overflow-hidden animate-fade-slide-in">
           <div className="px-4 py-3.5 border-b border-ink/8 flex items-center justify-between">
             <div>
               <p className="font-semibold text-sm">AI Stylist</p>
-              <p className="eyebrow mt-0.5">Online</p>
+              <p className="eyebrow mt-0.5">Wardrobe-aware</p>
             </div>
             <div className="flex items-center gap-3">
               <button onClick={onExpand} className="text-xs text-indigo font-medium hover:text-indigo-dark">
@@ -79,22 +91,31 @@ export default function ChatbotDock({ items, onExpand }) {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[80%] text-sm px-3.5 py-2 rounded-lg ${
-                    m.role === 'user' ? 'bg-indigo text-white' : 'bg-panel text-ink'
+                  className={`max-w-[92%] text-sm px-3.5 py-2 rounded-lg ${
+                    m.role === 'user' ? 'bg-indigo text-white' : 'bg-panel text-ink border border-ink/8'
                   }`}
                 >
-                  {m.text}
+                  <p>{m.text}</p>
+                  {m.role === 'ai' && m.recommendedItems?.length > 0 && (
+                    <ChatOutfitSuggestions
+                      recommendedItems={m.recommendedItems}
+                      wardrobeItems={items}
+                      onVisualizeItem={handleVisualizeItem}
+                      onVisualizeOutfit={handleVisualizeOutfit}
+                      compact
+                    />
+                  )}
                 </div>
               </div>
             ))}
-            {sending && <p className="eyebrow">Thinking...</p>}
+            {sending && <p className="eyebrow">Building outfit from your wardrobe...</p>}
           </div>
 
           <form onSubmit={submit} className="px-3 py-3 border-t border-ink/8 flex gap-2">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask your AI stylist..."
+              placeholder="What should I wear today?"
               className="field flex-1"
             />
             <button type="submit" className="btn-primary !px-4">

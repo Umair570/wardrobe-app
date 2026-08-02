@@ -20,7 +20,8 @@ import StylistPage from './pages/StylistPage'
 import RecommendedOutfitsPage from './pages/RecommendedOutfitsPage'
 
 import { fetchWardrobe, removeItem } from './api/wardrobeApi'
-import { buildOutfitFromItem, buildOutfitFromRecommendation } from './data/outfitBuilder'
+import { postVisualization } from './api/stylistApi'
+
 
 function WardrobeApp() {
   const notify = useToast()
@@ -52,15 +53,56 @@ function WardrobeApp() {
     navigate('details')
   }
 
-  const visualizeItem = (item) => {
-    setActiveOutfit(buildOutfitFromItem(item, items))
+  const visualizeItem = async (item) => {
+    try {
+      const layout = await postVisualization([item.id])
+      setActiveOutfit(layout)
+    } catch {
+      setActiveOutfit({ mode: 'offline', items: [], slots: [], tags: [], description: `Could not load visualization for ${item.name || item.type}. Is the backend running?` })
+    }
     navigate('visualize')
   }
 
-  const visualizeRecommendation = (outfit) => {
-    setActiveOutfit(buildOutfitFromRecommendation(outfit, items))
+  const visualizeItemById = async (itemId) => {
+    const item = items.find((i) => i.id === itemId)
+    if (!item) {
+      try {
+        const layout = await postVisualization([itemId])
+        setActiveOutfit(layout)
+        navigate('visualize')
+      } catch (err) {
+        notify(err.message || 'Could not visualize this item.')
+      }
+      return
+    }
+    await visualizeItem(item)
+  }
+
+  const visualizeMultipleItems = async (itemIds) => {
+    if (!itemIds || itemIds.length === 0) return
+    try {
+      const layout = await postVisualization(itemIds)
+      setActiveOutfit(layout)
+    } catch (err) {
+      notify(err.message || 'Could not visualize selected items.')
+    }
     navigate('visualize')
   }
+
+  const visualizeRecommendation = async (outfit) => {
+    if (outfit.item_ids && outfit.item_ids.length > 0) {
+      try {
+        const layout = await postVisualization(outfit.item_ids)
+        setActiveOutfit(layout)
+      } catch {
+        setActiveOutfit({ mode: 'offline', items: [], slots: [], tags: [], description: 'Could not load visualization. Is the backend running?' })
+      }
+    } else {
+      setActiveOutfit(outfit)
+    }
+    navigate('visualize')
+  }
+
 
   const handleRemove = async (item) => {
     await removeItem(item.id)
@@ -90,8 +132,10 @@ function WardrobeApp() {
             loading={loading}
             onOpenItem={openItem}
             onGoToUpload={() => navigate('upload')}
+            onVisualizeMultiple={visualizeMultipleItems}
           />
         )}
+
 
         {page === 'details' && (
           <ItemDetailsPage
@@ -113,17 +157,28 @@ function WardrobeApp() {
         )}
 
         {page === 'stylist' && (
-          <StylistPage items={items} onViewRecommended={() => navigate('recommended')} />
+          <StylistPage
+            items={items}
+            onViewRecommended={() => navigate('recommended')}
+            onVisualizeItem={visualizeItemById}
+            onVisualizeOutfit={visualizeMultipleItems}
+          />
         )}
 
+
         {page === 'recommended' && (
-          <RecommendedOutfitsPage onBack={() => navigate('stylist')} onVisualize={visualizeRecommendation} />
+          <RecommendedOutfitsPage items={items} onBack={() => navigate('stylist')} onVisualize={visualizeRecommendation} />
         )}
       </main>
 
       <BottomNav page={page} onNavigate={navigate} onAdd={() => navigate('upload')} onOpenSidebar={() => setSidebarOpen(true)} />
 
-      <ChatbotDock items={items} onExpand={() => navigate('stylist')} />
+      <ChatbotDock
+        items={items}
+        onExpand={() => navigate('stylist')}
+        onVisualizeItem={visualizeItemById}
+        onVisualizeOutfit={visualizeMultipleItems}
+      />
     </div>
   )
 }

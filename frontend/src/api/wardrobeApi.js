@@ -9,6 +9,7 @@
 // below (uploadItem / fetchWardrobe / removeItem).
 
 import { SEED_ITEMS } from '../data/mockData'
+import { getDisplayCategory } from '../utils/outfitSlots'
 
 const USE_MOCK = !import.meta.env.VITE_API_BASE_URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
@@ -117,24 +118,80 @@ async function mockRemoveItem(id) {
   return { ok: true }
 }
 
+export function normalizeItem(item) {
+  if (!item) return item
+  const rawId = item.id || item._id || 'unknown'
+  const id = String(rawId)
+  const category = item.category || 'Clothing'
+  const type = item.type || category
+  const color = item.color || ''
+  
+  // Construct clean display name
+  let name = item.name
+  if (!name || name === 'undefined') {
+    name = color ? `${color} ${type}` : type
+    name = name.charAt(0).toUpperCase() + name.slice(1)
+  }
+
+  // Construct valid image_url for browser
+  let image_url = item.image_url
+  if (!image_url) {
+    const rawPath = item.segmentation_path || item.source_image || ''
+    if (rawPath) {
+      const norm = rawPath.replace(/\\/g, '/')
+      const idxUploads = norm.toLowerCase().indexOf('uploads/')
+      const idxMl = norm.toLowerCase().indexOf('ml/outputs/')
+      if (idxUploads !== -1) {
+        image_url = `${API_BASE_URL}/${norm.substring(idxUploads)}`
+      } else if (idxMl !== -1) {
+        image_url = `${API_BASE_URL}/${norm.substring(idxMl)}`
+      } else {
+        image_url = norm.startsWith('http') ? norm : `${API_BASE_URL}/${norm.replace(/^\//, '')}`
+      }
+    }
+  }
+
+  const addedDate = item.addedDate || (item.uploaded_at ? new Date(item.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently')
+
+  return {
+    ...item,
+    id,
+    name,
+    category,
+    displayCategory: getDisplayCategory({ ...item, category }),
+    type,
+    color,
+    material: item.material || item.pattern || 'Cotton',
+    season: item.season || 'All Season',
+    occasion: item.occasion || item.style || 'Casual',
+    viewCount: item.viewCount ?? 0,
+    wearCount: item.wearCount ?? 0,
+    addedDate,
+    confidence: item.confidence || (item.confidence_scores?.category ? Math.round(item.confidence_scores.category * 100) : 90),
+    image_url: image_url || '/placeholder.png',
+  }
+}
+
 async function realUploadItem(file, { onStep } = {}) {
   const form = new FormData()
-  form.append('image', file)
+  form.append('file', file)
   onStep?.(0)
-  const res = await fetch(`${API_BASE_URL}/api/upload`, { method: 'POST', body: form })
+  const res = await fetch(`${API_BASE_URL}/upload/`, { method: 'POST', body: form })
   if (!res.ok) throw { code: 'ERR_001', message: 'The AI could not find a clothing item in the uploaded image.' }
   onStep?.(PROCESSING_STEPS.length - 1)
-  return res.json()
+  const data = await res.json()
+  return Array.isArray(data) ? data.map(normalizeItem)[0] : normalizeItem(data)
 }
 
 async function realFetchWardrobe() {
-  const res = await fetch(`${API_BASE_URL}/api/wardrobe`)
+  const res = await fetch(`${API_BASE_URL}/wardrobe/`)
   if (!res.ok) throw new Error('Could not load your wardrobe.')
-  return res.json()
+  const data = await res.json()
+  return data.map(normalizeItem)
 }
 
 async function realRemoveItem(id) {
-  const res = await fetch(`${API_BASE_URL}/api/wardrobe/${id}`, { method: 'DELETE' })
+  const res = await fetch(`${API_BASE_URL}/wardrobe/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error('Could not remove this item.')
   return res.json()
 }
@@ -143,3 +200,4 @@ export const uploadItem = USE_MOCK ? mockUploadItem : realUploadItem
 export const fetchWardrobe = USE_MOCK ? mockFetchWardrobe : realFetchWardrobe
 export const removeItem = USE_MOCK ? mockRemoveItem : realRemoveItem
 export const isMock = USE_MOCK
+

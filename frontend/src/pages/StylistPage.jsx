@@ -1,12 +1,15 @@
 // src/pages/StylistPage.jsx
-import { useState, useRef, useEffect } from 'react'
-import { askStylist, SUGGESTED_PROMPTS } from '../api/stylistApi'
+import { useEffect, useRef, useState } from 'react'
+import { sendMessage } from '../api/chatbotApi'
+import { SUGGESTED_PROMPTS } from '../api/stylistApi'
+import ChatOutfitSuggestions from '../components/ChatOutfitSuggestions'
 
-export default function StylistPage({ items, onViewRecommended }) {
+export default function StylistPage({ items, onViewRecommended, onVisualizeItem, onVisualizeOutfit }) {
   const [messages, setMessages] = useState([
     {
       role: 'ai',
-      text: "Hello! I'm your AI Stylist. Ask me anything about what to wear or select wardrobe items on the right for personalized suggestions!",
+      text: "Hello! I'm your AI Stylist. Ask me what to wear — I'll pick a complete outfit from your wardrobe. Each suggestion comes with individual visualize buttons.",
+      recommendedItems: [],
     },
   ])
   const [input, setInput] = useState('')
@@ -15,9 +18,8 @@ export default function StylistPage({ items, onViewRecommended }) {
   const chatEndRef = useRef(null)
 
   const contextItems = items.filter((i) => checked.has(i.id))
-  const outfitsSuggested = messages.filter((m) => m.role === 'ai').length - 1
+  const outfitsSuggested = messages.filter((m) => m.role === 'ai' && m.recommendedItems?.length).length
 
-  // Auto-scroll chat to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, sending])
@@ -29,8 +31,8 @@ export default function StylistPage({ items, onViewRecommended }) {
     setInput('')
     setSending(true)
 
-    const reply = await askStylist(trimmed, contextItems)
-    setMessages((prev) => [...prev, { role: 'ai', text: reply }])
+    const { reply, recommendedItems } = await sendMessage(trimmed, { wardrobeItems: contextItems })
+    setMessages((prev) => [...prev, { role: 'ai', text: reply, recommendedItems }])
     setSending(false)
   }
 
@@ -49,7 +51,7 @@ export default function StylistPage({ items, onViewRecommended }) {
           <div className="px-5 py-4 border-b border-ink/10 flex items-center justify-between">
             <div>
               <h1 className="font-semibold">AI Stylist</h1>
-              <p className="eyebrow mt-0.5">Online · Powered by AI</p>
+              <p className="eyebrow mt-0.5">Wardrobe-aware · FR-7</p>
             </div>
             <button onClick={onViewRecommended} className="btn-outline !py-1.5 !px-3 text-xs">
               Recommended Outfits
@@ -60,17 +62,25 @@ export default function StylistPage({ items, onViewRecommended }) {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[80%] text-sm px-4 py-2.5 rounded-2xl ${
+                  className={`max-w-[85%] text-sm px-4 py-2.5 rounded-2xl ${
                     m.role === 'user'
                       ? 'bg-blue-600 text-white rounded-br-none'
                       : 'bg-ink/5 border border-ink/10 rounded-bl-none text-ink'
                   }`}
                 >
-                  {m.text}
+                  <p>{m.text}</p>
+                  {m.role === 'ai' && m.recommendedItems?.length > 0 && (
+                    <ChatOutfitSuggestions
+                      recommendedItems={m.recommendedItems}
+                      wardrobeItems={items}
+                      onVisualizeItem={onVisualizeItem}
+                      onVisualizeOutfit={onVisualizeOutfit}
+                    />
+                  )}
                 </div>
               </div>
             ))}
-            {sending && <p className="eyebrow text-xs text-ink/50 animate-pulse">Stylist is thinking...</p>}
+            {sending && <p className="eyebrow text-xs text-ink/50 animate-pulse">Building outfit from your wardrobe...</p>}
             <div ref={chatEndRef} />
           </div>
 
@@ -93,7 +103,7 @@ export default function StylistPage({ items, onViewRecommended }) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && send(input)}
-                placeholder="Ask your AI stylist..."
+                placeholder="What should I wear today?"
                 disabled={sending}
                 className="field flex-1"
               />
@@ -107,7 +117,7 @@ export default function StylistPage({ items, onViewRecommended }) {
         <div className="flex flex-col gap-6">
           <div className="panel p-4">
             <p className="eyebrow mb-3">Wardrobe Context</p>
-            <p className="text-xs text-soft mb-3">Items sent to AI assistant:</p>
+            <p className="text-xs text-soft mb-3">Checked items are included in AI context:</p>
             <div className="space-y-2 max-h-56 overflow-y-auto">
               {items.map((item) => (
                 <label key={item.id} className="flex items-center gap-2.5 text-sm cursor-pointer">
@@ -130,7 +140,7 @@ export default function StylistPage({ items, onViewRecommended }) {
             </div>
             <div className="flex justify-between text-sm py-1.5 border-t border-ink/10">
               <span className="text-soft">Outfits suggested</span>
-              <span className="font-medium">{Math.max(0, outfitsSuggested)}</span>
+              <span className="font-medium">{outfitsSuggested}</span>
             </div>
           </div>
         </div>

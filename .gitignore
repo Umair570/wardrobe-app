@@ -45,22 +45,19 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Virtual Environment
+# Virtual Environment & Env Files
 venv/
 .venv/
 .env
+frontend/.env
+*.env
 
-# IDE
-.vscode/
-.idea/
-
-# Hugging Face Cache
-.cache/
-huggingface/
-
-# Outputs
+# Uploads & Outputs
+uploads/
+backend/uploads/
 ml/outputs/*
 !ml/outputs/.gitkeep
+backend/ml/outputs/*
 
 # Test Images
 ml/test_images/*
@@ -69,3 +66,4 @@ ml/test_images/*
 # OS
 .DS_Store
 Thumbs.db
+

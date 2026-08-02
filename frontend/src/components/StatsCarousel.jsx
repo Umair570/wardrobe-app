@@ -62,17 +62,24 @@ export default function StatsCarousel({ items }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {slide.items.map((item) => (
             <div key={item.id} className="flex items-center gap-2.5">
-              <div className="placeholder-box w-10 h-10 shrink-0 text-[9px]">{item.category}</div>
+              {item.image_url ? (
+                <img src={item.image_url} alt={item.name || item.type} className="w-10 h-10 object-cover rounded border border-ink/10 shrink-0" />
+              ) : (
+                <div className="placeholder-box w-10 h-10 shrink-0 text-[9px]">{item.category}</div>
+              )}
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{item.name}</p>
+                <p className="text-sm font-medium truncate">{item.name || item.type || 'Item'}</p>
                 <p className="text-xs text-soft">
-                  {slide.key === 'recent' ? item.addedDate : `${slide.stat(item)} ${slide.unit}`}
+                  {slide.key === 'recent'
+                    ? (item.addedDate || 'Recent')
+                    : `${slide.stat(item) ?? 0} ${slide.unit}`}
                 </p>
               </div>
             </div>
           ))}
         </div>
       </div>
+
 
       <div className="flex items-center justify-center gap-1.5 mt-4">
         {slides.map((s, i) => (

@@ -10,15 +10,15 @@ export default function ItemDetailsPage({ item, onBack, onVisualize, onAskStylis
 
       <div className="grid md:grid-cols-2 gap-8">
         <div>
-          <div className="placeholder-box aspect-square w-full mb-3">Large Clothing Image</div>
-          <div className="grid grid-cols-3 gap-3">
-            {['Alt 1', 'Alt 2', 'Alt 3'].map((label) => (
-              <div key={label} className="placeholder-box aspect-square text-[10px]">
-                {label}
-              </div>
-            ))}
+          <div className="aspect-square w-full mb-3 rounded-2xl overflow-hidden bg-ink/5 border border-ink/10 flex items-center justify-center p-4">
+            {item.image_url ? (
+              <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-soft text-sm">No Image</span>
+            )}
           </div>
         </div>
+
 
         <div>
           <p className="eyebrow mb-2">Category</p>
@@ -44,9 +44,12 @@ export default function ItemDetailsPage({ item, onBack, onVisualize, onAskStylis
           </div>
 
           <p className="eyebrow mb-3">Actions</p>
+          <p className="text-xs text-soft mb-3">
+            For a full outfit preview, go to Wardrobe and select a top, bottom, and shoes.
+          </p>
           <div className="flex flex-col gap-2.5">
-            <button onClick={() => onVisualize(item)} className="btn-primary">
-              Visualize on Body
+            <button onClick={() => onVisualize(item)} className="btn-outline">
+              Preview This Item
             </button>
             <button onClick={() => onAskStylist(item)} className="btn-outline">
               Ask AI Stylist
