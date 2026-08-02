@@ -6,6 +6,7 @@ build/
 out/
 coverage/
 .nuxt/
+uploads/
 
 # Machine Learning & Data
 *.pt
