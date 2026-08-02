@@ -1,172 +1,164 @@
-# AI Wardrobe Assistant — MVP
+# 👗 AI Wardrobe Assistant
 
-An AI-powered wardrobe app: upload clothing photos, auto-segment and classify items, browse a digital wardrobe, get outfit suggestions from a wardrobe-aware chatbot, and preview garments on a body template (2D overlay).
-
-**Team:** Umair (ML) · Mahad (Backend/DB) · Ayesha (Frontend) · Abdulrehman (Chatbot + Visualization)
+An AI-powered digital wardrobe application: upload clothing photos, automatically segment and classify garments into digital wardrobe slots, interact with a wardrobe-aware AI Stylist chatbot, and preview outfit combinations using **Interactive 2D Body Overlays** or **Photorealistic Gemini AI Virtual Try-On**.
 
 ---
 
-## Current status (Aug 2026)
+## ✨ Features & Architecture
 
-| Area | Owner | Status | JIRA |
-| --- | --- | --- | --- |
-| Segmentation + classification | Umair | Done | WMVP-6 |
-| Backend (FastAPI) + MongoDB | Mahad | Done | WMVP-7 |
-| Frontend (upload, wardrobe, UI) | Ayesha | Done | WMVP-8 |
-| Chatbot + visualization integration | Abdulrehman | **Done** | **WMVP-20** |
-| Refine chatbot + visualization | Abdulrehman | **Done** | **WMVP-21** |
-
-
-### End-to-end flow (working)
-
-```
-Upload photo → ML segmentation + classification → MongoDB
-      ↓
-Wardrobe gallery (slot-based outfit builder)
-      ↓
-Chatbot (POST /chat) — complete outfit suggestions + per-item visualize
-      ↓
-Visualization (POST /visualization) — 2D garment overlay on mannequin
-```
+### 🤖 1. AI Stylist Chatbot (`POST /chat`)
+- **Wardrobe-Aware Recommendations**: Queries your live MongoDB wardrobe items and generates personalized outfit recommendations tailored to weather, occasion, or style.
+- **Structured Output**: Returns structured response payloads (`reply`, `recommended_items[]`, `source`) without exposing raw database IDs to the user interface.
+- **Interactive Chat Buttons**: Each recommended outfit card includes individual **Visualize** buttons as well as a **Visualize Full Outfit** button.
+- **Intelligent Query Relevance Matching**: Uses smart keyword scoring (matching colors, garment types, styles, and seasons) when operating in fallback mode.
+- **Source Tracking**: Surfaces whether a response originated directly from the LLM (`source: "llm"`) or local fallback logic (`source: "fallback"`).
 
 ---
 
-## WMVP-20 — Complete
-
-All phases delivered:
-
-| Phase | Deliverable |
-| --- | --- |
-| 1 | `ChatbotService` fetches live items from MongoDB |
-| 2 | Frontend wired to `POST /chat` (chat dock + stylist page) |
-| 3 | `VisualizationService` + `POST /visualization` overlay contract |
-| 4 | `OutfitVisualizationPage` renders positioned PNG cutouts |
-| 5 | Unit tests in `backend/tests/test_chatbot_service.py` and `test_visualization_service.py` |
-
-### Chatbot features
-
-- Wardrobe-aware replies from MongoDB (fallback to local outfit picker if OpenRouter is unavailable)
-- Structured response: `{ reply, recommended_items[] }` — **no raw MongoDB IDs shown to users**
-- Complete outfit picking: one top + one bottom + shoes (deduped by slot)
-- Per-item **Visualize** buttons + **Visualize full outfit** in chat UI
-
-### Visualization features
-
-- 2D overlay mode (`mode: "overlay"`) with `position` + `z_index` per garment
-- Slot mapping: `shirt/sweater → top`, `pants/shorts/skirt → bottom`, `shoes → shoes`, `jacket → outerwear`
-- Wardrobe outfit builder: select one item per slot → **Visualize Outfit**
-- Bags/accessories are stored but not visualizable (by design)
+### 📐 2. Interactive 2D Layering Canvas & Body Photo Template (`POST /visualization`)
+- **Category Slot Mapping**: Automatically maps items into standard clothing slots (`top`, `bottom`, `shoes`, `outerwear`) with designated coordinate positioning and z-indexing.
+- **User Body Photo Template**: Upload a full-body photo of yourself to render as the canvas backdrop, allowing you to preview clothes directly on your real body shape.
+- **Interactive Drag Controls**: Drag and adjust garment cutouts freely over the silhouette or your photo to inspect fit using `framer-motion`.
+- **Color Harmony Detector**: Automated palette analysis displaying outfit color tones and harmony scores.
+- **Layout Reset**: Reset layout controls to return garments to default backend positions instantly.
 
 ---
 
-## WMVP-21 — When to start
-
-**You can start WMVP-21 now.** WMVP-20 is marked Done in JIRA; WMVP-21 is scheduled from early August and is the natural next step.
-
-### WMVP-21 scope (from JIRA)
-
-- Improve overlay positioning accuracy on the mannequin
-- Enhance chatbot response quality (LLM prompts, edge cases)
-- Harden fallback scenarios (backend offline, empty wardrobe, misclassified items)
-- Fix issues found during end-to-end demo testing
-- Optional stretch: wire `image_generation_service.py` (Gemini/Qwen) — not required for MVP sign-off
-
-### Known issues to address in WMVP-21
-
-| Issue | Area |
-| --- | --- |
-| Color mislabels (e.g. black shirt → "tan", white shoes → "khaki") | ML classifier (Umair) |
-| Misclassified items (bag/skirt from clothing photo) | ML segmentation/classifier |
-| 2D overlay looks basic / cutouts show hangers | Segmentation quality + CSS positioning |
-| Gemini/Qwen image gen is stub-only | `image_generation_service.py` (optional) |
+### ✨ 3. Gemini AI Virtual Try-On (`image_generation_service.py`)
+- **Multimodal Image Try-On**: Connected to Google Gemini API (`gemini-2.5-flash-image` / `gemini-1.5-flash`) for AI virtual try-on.
+- **Image-to-Image Conditioning**: Combines the user's base64 body photo with selected garment PNG cutouts to synthesize photorealistic full-body AI model try-on photos.
+- **Dual Mode Switcher**: Seamlessly toggle between **`📸 2D Canvas Overlay`** (instant interactive canvas) and **`✨ Gemini AI Model Try-On`** (photorealistic AI photo generation).
 
 ---
 
-## Quick start
+### 🛍️ 4. Wardrobe Gallery & Outfit Builder
+- **Slot-Based Outfit Builder**: Floating interactive bar on the Wardrobe page allowing users to select 1 item per category slot (`Top`, `Bottom`, `Shoes`, `Outerwear`) and visualize the full outfit with one click.
+- **Resilient Image Serving**: Dynamic static file handler (`/ml/outputs/{filename:path}`) searching across candidate directories to guarantee image cutouts load cleanly without 404s.
+- **Database Safety Guards**: Robust exception handling skipping malformed MongoDB documents so gallery rendering never fails.
 
-### 1. Environment
+---
 
-Create `.env` in the **repo root** (`wardrobe-app/.env`):
+## 🚀 Getting Started
+
+### 1. Environment Setup
+
+Create `.env` in the **repository root** (`wardrobe-app/.env`):
 
 ```env
-# MongoDB (Mahad)
+# MongoDB Database
 MONGODB_URI=mongodb+srv://...
-MONGODB_DB_NAME=wardrobe_app
+MONGODB_DB_NAME=wardrobe_db
 UPLOAD_DIR=uploads
 
-# Chatbot (Abdulrehman) — optional; local outfit picker works without these
+# AI Stylist Chatbot (OpenRouter)
 LLM_PROVIDER=openrouter
-LLM_MODEL=openrouter/free
-OPENROUTER_API_KEY=your_key_here
+LLM_MODEL=meta-llama/llama-3.1-8b-instruct:free
+OPENROUTER_API_KEY=your_openrouter_api_key
+
+# Gemini AI Virtual Try-On
+GEMINI_API_KEY=your_google_gemini_api_key
 ```
 
 Create `frontend/.env`:
 
 ```env
 VITE_API_BASE_URL=http://localhost:8000
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
-
-Never commit `.env` files or API keys.
-
-### 2. Backend
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-
-# From repo root — serves on http://localhost:8000
-uvicorn backend.app.main:app --reload --app-dir .
-```
-
-Swagger UI: http://localhost:8000/docs
-
-### 3. Frontend
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-App: http://localhost:5173
 
 ---
 
-## API reference
+### 2. Backend Installation & Server Run
+
+Open PowerShell Terminal 1:
+
+```powershell
+# Navigate to backend directory
+cd backend
+
+# Create & activate virtual environment (optional)
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# Install dependencies
+pip install -r ..\requirements.txt
+
+# Run FastAPI server on port 8000
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+- **Swagger Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
+
+---
+
+### 3. Frontend Installation & Dev Server Run
+
+Open PowerShell Terminal 2:
+
+```powershell
+# Navigate to frontend directory
+cd frontend
+
+# Install packages
+npm install
+
+# Start Vite development server
+npm run dev
+```
+
+- **Web Application UI**: [http://localhost:5173](http://localhost:5173)
+
+---
+
+## 📡 API Reference
 
 | Method | Endpoint | Description |
-| --- | --- | --- |
-| `POST` | `/upload/` | Upload image → segment, classify, save to MongoDB |
-| `GET` | `/wardrobe/` | List all wardrobe items |
-| `GET` | `/wardrobe/{id}` | Single item |
-| `DELETE` | `/wardrobe/{id}` | Remove item |
-| `POST` | `/chat` | Wardrobe-aware outfit suggestion |
-| `POST` | `/visualization` | 2D overlay layout for selected item IDs |
-| `GET` | `/health` | Health check |
+| :--- | :--- | :--- |
+| `POST` | `/upload/` | Upload clothing image → segment cutouts, classify, save to MongoDB |
+| `GET` | `/wardrobe/` | List all digital wardrobe items |
+| `GET` | `/wardrobe/{id}` | Retrieve single wardrobe item details |
+| `DELETE` | `/wardrobe/{id}` | Delete item from digital wardrobe |
+| `POST` | `/chat` | Send prompt to AI Stylist → get outfit recommendation + item cards |
+| `POST` | `/visualization` | Generate 2D overlay positions or Gemini AI virtual try-on |
+| `GET` | `/health` | Health check endpoint |
 
-### `POST /chat` request / response
+---
 
+### Request / Response Examples
+
+#### `POST /chat`
 ```json
 // Request
-{ "message": "What should I wear today?", "user_id": "default_user" }
+{
+  "message": "What matches my blue jeans?",
+  "user_id": "default_user"
+}
 
 // Response
 {
-  "reply": "Here's a complete look from your wardrobe: Tan T-shirt, Charcoal Shorts, and White Sneakers.",
+  "reply": "Great choice! Here is a stylish match for your denim/blue pieces: Baby Blue shirt, Charcoal denim shorts, and Taupe sneakers.",
   "recommended_items": [
-    { "id": "...", "label": "Tan T-shirt", "slot": "top", "category": "shirt", "color": "tan", "type": "t-shirt" }
-  ]
+    {
+      "id": "66ad1234...",
+      "label": "Baby Blue Shirt",
+      "category": "shirt",
+      "slot": "top",
+      "color": "baby blue",
+      "type": "shirt"
+    }
+  ],
+  "source": "llm"
 }
 ```
 
-### `POST /visualization` request / response
-
+#### `POST /visualization`
 ```json
 // Request
-{ "item_ids": ["66ad1234...", "66ad5678..."], "mode": "overlay" }
+{
+  "item_ids": ["66ad1234...", "66ad5678..."],
+  "mode": "overlay",
+  "user_body_photo_url": "data:image/jpeg;base64,..."
+}
 
 // Response
 {
@@ -175,99 +167,67 @@ App: http://localhost:5173
     {
       "id": "66ad1234...",
       "category": "top",
-      "type": "t-shirt",
-      "image_url": "/ml/outputs/item_0.png",
-      "position": { "x": 50, "y": 30, "width": 72, "height": 28 },
+      "type": "shirt",
+      "image_url": "http://localhost:8000/ml/outputs/item_0.png",
+      "position": { "x": 50, "y": 30, "width": 70, "height": 30 },
       "z_index": 3
     }
-  ]
+  ],
+  "ai_image_url": null
 }
 ```
 
-Static files: `/uploads` and `/ml/outputs` are mounted in `backend/app/main.py`.
-
 ---
 
-## Demo script (acceptance test)
-
-1. **Upload** — POST a clothing photo via Upload page or `/upload/`
-2. **Wardrobe** — confirm item appears with segmentation PNG
-3. **Outfit builder** — select top + bottom + shoes → **Visualize Outfit**
-4. **Chatbot** — ask *"What should I wear today?"* → verify item cards with individual Visualize buttons
-5. **Single item** — click Visualize on one item → only that garment on mannequin
-
----
-
-## Tests
-
-```powershell
-# All backend tests
-python -m unittest discover -s backend/tests -p "test_*.py" -v
-
-# Chatbot only
-python -m unittest backend.tests.test_chatbot_service -v
-
-# Visualization only
-python -m unittest backend.tests.test_visualization_service -v
-
-# Image generation factory (stubs)
-python -m unittest backend.tests.test_image_generation_service -v
-```
-
----
-
-## Project structure
+## 📂 Project Structure
 
 ```text
 wardrobe-app/
-├── ml/                          # [Umair] CLIPSeg + SAM2 + FashionCLIP pipeline
+├── ml/                                 # Computer Vision & ML Pipeline (Segmentation + Classification)
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              # FastAPI app, CORS, static mounts
-│   │   ├── ml_loader.py         # Lazy ML import
-│   │   ├── database/            # MongoDB connection + models
+│   │   ├── main.py                     # FastAPI app entrypoint, CORS, static routes
+│   │   ├── ml_loader.py                # Lazy ML model loader
+│   │   ├── database/                   # MongoDB connection & Pydantic schemas
 │   │   ├── routes/
-│   │   │   ├── upload.py
-│   │   │   ├── wardrobe.py
-│   │   │   ├── chatbot.py       # POST /chat
-│   │   │   └── visualization.py # POST /visualization
+│   │   │   ├── upload.py               # POST /upload/
+│   │   │   ├── wardrobe.py             # GET, DELETE /wardrobe/
+│   │   │   ├── chatbot.py              # POST /chat
+│   │   │   └── visualization.py        # POST /visualization
 │   │   └── services/
-│   │       ├── chatbot_service.py
-│   │       ├── visualization_service.py
-│   │       └── image_generation_service.py  # Gemini/Qwen stubs (WMVP-21+)
-│   └── tests/
+│   │       ├── chatbot_service.py      # LLM Chatbot Service & Fallback Outfit Picker
+│   │       ├── visualization_service.py# 2D Canvas Layout Generator & Body Photo Transformer
+│   │       └── image_generation_service.py # Gemini Multimodal Virtual Try-On Service
+│   └── tests/                          # Backend Unit Tests (unittest)
 ├── frontend/
 │   ├── src/
-│   │   ├── api/                 # chatbotApi, wardrobeApi, stylistApi
-│   │   ├── components/          # ChatbotDock, ChatOutfitSuggestions
-│   │   ├── pages/               # Wardrobe, Stylist, OutfitVisualization
-│   │   └── utils/outfitSlots.js # Category → slot mapping
+│   │   ├── api/                        # API client functions (chatbotApi, stylistApi, wardrobeApi)
+│   │   ├── components/                 # ChatbotDock, ChatOutfitSuggestions, UserBodyPhotoUpload
+│   │   ├── pages/                      # WardrobePage, StylistPage, OutfitVisualizationPage, HomePage
+│   │   └── utils/                      # outfitSlots.js (slot mapping utilities)
 │   └── .env
-└── docs/architecture.md
+└── README.md
 ```
 
 ---
 
-## MVP boundaries (PRD)
+## 🧪 Automated Unit Tests
 
-| In scope | Out of scope |
-| --- | --- |
-| Upload, segment, classify, store | Photorealistic virtual try-on |
-| Wardrobe hanger/gallery view | Multi-user social features |
-| 2D body-template overlay | Outfit history / wear analytics |
-| Wardrobe-aware chatbot | Custom ML model training |
-| Error handling for bad uploads | Native mobile app |
+Run all backend unit tests from the repository root:
 
-### AI image generation (optional, post-MVP)
+```powershell
+python -m unittest discover -s backend/tests -p "test_*.py" -v
+```
 
-`image_generation_service.py` has a Gemini/Qwen factory pattern but **returns placeholders only** — not wired to the visualization route. To improve visuals later:
+To run individual test suites:
 
-- **Gemini** — free tier on [Google AI Studio](https://aistudio.google.com) (daily limits)
-- **Qwen** — DashScope free trial, then paid
-- **2D overlay** remains the required fallback per PRD
+```powershell
+# Chatbot test suite
+python -m unittest backend.tests.test_chatbot_service -v
 
----
+# Visualization test suite
+python -m unittest backend.tests.test_visualization_service -v
 
-## User identity (MVP policy)
-
-If no auth token is sent, the app uses `user_id: "default_user"` and queries the global wardrobe collection. Post-MVP: JWT/Supabase session will scope items per user.
+# Image generation test suite
+python -m unittest backend.tests.test_image_generation_service -v
+```
