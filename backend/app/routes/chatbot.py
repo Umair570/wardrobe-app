@@ -1,6 +1,6 @@
 """FastAPI route for the wardrobe chatbot MVP."""
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -42,6 +42,12 @@ class RecommendedItemOut(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     recommended_items: list[RecommendedItemOut] = Field(default_factory=list)
+    # "llm"       -> both reply text and item picks came straight from the
+    #                configured OpenRouter model.
+    # "fallback"  -> local keyword picker was used (LLM not configured, the
+    #                HTTP call failed, or its output couldn't be parsed).
+    # Surface this in your UI/demo so you can always tell which one answered.
+    source: Literal["llm", "fallback"] = "fallback"
 
 
 @router.post("", response_model=ChatResponse)
@@ -66,6 +72,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
                 )
                 for item in result.recommended_items
             ],
+            source=result.source,
         )
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error

@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Layers, RefreshCw, Sparkles, Move, Palette, Camera, Image as ImageIcon } from 'lucide-react'
+import { Layers, RefreshCw, Sparkles, Move, Palette, Camera, Image as ImageIcon, AlertTriangle } from 'lucide-react'
 import BackLink from '../components/BackLink'
 import UserBodyPhotoUpload from '../components/UserBodyPhotoUpload'
 import { SLOT_LABELS } from '../utils/outfitSlots'
+import { postVisualization } from '../api/stylistApi'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -24,16 +25,23 @@ export default function OutfitVisualizationPage({
   onGenerateAnother,
 }) {
   const [showPhotoModal, setShowPhotoModal] = useState(false)
-  const [activeMode, setActiveMode] = useState('overlay') // 'overlay' | 'ai'
+  const [activeMode, setActiveMode] = useState('overlay') // Default to 2D static canvas overlay
   const [aiLoading, setAiLoading] = useState(false)
   const [aiImage, setAiImage] = useState(outfit?.ai_image_url || '')
+  const [aiError, setAiError] = useState('')
+
+  const isOverlay = outfit?.mode === 'overlay' && Array.isArray(outfit.items)
+  const isOffline = outfit?.mode === 'offline'
+
+  useEffect(() => {
+    if (outfit?.ai_image_url) {
+      setAiImage(outfit.ai_image_url)
+    }
+  }, [outfit])
+
 
   if (!outfit) return null
 
-  // Backend Overlay state detection
-  const isOverlay = outfit.mode === 'overlay' && Array.isArray(outfit.items)
-  const isOffline = outfit.mode === 'offline'
-  
   // Slot tracking
   const { slots = [], tags = [], description = '' } = outfit
   const filledSlots = isOverlay ? new Set(outfit.items.map((i) => i.category)) : new Set()
@@ -49,22 +57,44 @@ export default function OutfitVisualizationPage({
 
   const handleResetCanvas = () => setResetKey((prev) => prev + 1)
 
+  const runAiGeneration = async () => {
+    if (!isOverlay || outfit.items.length === 0) return
+
+    // Body photo is required server-side now — send the user to upload one
+    // instead of firing a request that's guaranteed to fail.
+    if (!userBodyPhoto) {
+      setShowPhotoModal(true)
+      return
+    }
+
+    setAiError('')
+    setAiLoading(true)
+    try {
+      const itemIds = outfit.items.map((i) => i.id)
+      const res = await postVisualization(itemIds, 'ai', userBodyPhoto)
+      if (res.ai_image_url) {
+        setAiImage(res.ai_image_url)
+      }
+    } catch (err) {
+      console.error('Gemini AI generation error:', err)
+      // Previously this only logged to console and the UI just quietly went
+      // back to the empty state with no explanation. Show the real error.
+      setAiError(err?.message || 'AI generation failed. Please try again.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   const handleSwitchMode = async (mode) => {
     setActiveMode(mode)
-    if (mode === 'ai' && !aiImage && isOverlay && outfit.items.length > 0) {
-      setAiLoading(true)
-      try {
-        const itemIds = outfit.items.map((i) => i.id)
-        const res = await postVisualization(itemIds, 'ai')
-        if (res.ai_image_url) {
-          setAiImage(res.ai_image_url)
-        }
-      } catch (err) {
-        console.error('Gemini AI generation error:', err)
-      } finally {
-        setAiLoading(false)
-      }
+    if (mode === 'ai' && !aiImage) {
+      await runAiGeneration()
     }
+  }
+
+  const handleSavePhotoAndRetry = (photo) => {
+    onSaveUserBodyPhoto?.(photo)
+    setShowPhotoModal(false)
   }
 
   return (
@@ -73,7 +103,7 @@ export default function OutfitVisualizationPage({
       {showPhotoModal && (
         <UserBodyPhotoUpload
           currentPhoto={userBodyPhoto}
-          onSavePhoto={onSaveUserBodyPhoto}
+          onSavePhoto={handleSavePhotoAndRetry}
           onClose={() => setShowPhotoModal(false)}
         />
       )}
@@ -156,15 +186,29 @@ export default function OutfitVisualizationPage({
                   </div>
                 ) : aiImage ? (
                   <img src={aiImage} alt="Gemini AI generated outfit try-on" className="w-full h-full object-contain rounded-2xl shadow-md" />
+                ) : aiError ? (
+                  <div className="text-center space-y-3 max-w-xs">
+                    <AlertTriangle className="w-8 h-8 text-red-500 mx-auto" />
+                    <p className="text-xs font-extrabold text-black">Couldn't generate the AI try-on</p>
+                    <p className="text-[11px] text-black/60">{aiError}</p>
+                    <button
+                      onClick={runAiGeneration}
+                      className="px-4 py-2 bg-black text-white text-xs font-bold rounded-xl shadow"
+                    >
+                      Try Again
+                    </button>
+                  </div>
                 ) : (
                   <div className="text-center space-y-2">
                     <Sparkles className="w-8 h-8 text-black/30 mx-auto" />
-                    <p className="text-xs font-semibold text-black/60">Click below to generate with Gemini AI</p>
+                    <p className="text-xs font-semibold text-black/60">
+                      {userBodyPhoto ? 'Click below to generate with Gemini AI' : 'Add your body photo, then generate with Gemini AI'}
+                    </p>
                     <button
-                      onClick={() => handleSwitchMode('ai')}
+                      onClick={runAiGeneration}
                       className="px-4 py-2 bg-black text-white text-xs font-bold rounded-xl shadow"
                     >
-                      ✨ Generate Gemini AI Try-On
+                      {userBodyPhoto ? '✨ Generate Gemini AI Try-On' : '📸 Add Body Photo to Continue'}
                     </button>
                   </div>
                 )}

@@ -14,7 +14,8 @@ An AI-powered wardrobe app: upload clothing photos, auto-segment and classify it
 | Backend (FastAPI) + MongoDB | Mahad | Done | WMVP-7 |
 | Frontend (upload, wardrobe, UI) | Ayesha | Done | WMVP-8 |
 | Chatbot + visualization integration | Abdulrehman | **Done** | **WMVP-20** |
-| Refine chatbot + visualization | Abdulrehman | **Next** | **WMVP-21** |
+| Refine chatbot + visualization | Abdulrehman | **Done** | **WMVP-21** |
+
 
 ### End-to-end flow (working)
 

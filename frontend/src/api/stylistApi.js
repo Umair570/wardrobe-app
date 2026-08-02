@@ -14,13 +14,49 @@ export const SUGGESTED_PROMPTS = [
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
-/** Build outfit combinations from live wardrobe items. */
-export async function generateOutfits(wardrobeItems = []) {
+/**
+ * Very light keyword matching so the same query words that are visible in
+ * the item's name/color/type/tags can influence which items get picked.
+ * This is not an LLM call — it's a stand-in so results actually change
+ * based on what the user typed instead of always returning the same
+ * fixed combo. Replace with a real backend call when the AI stylist
+ * endpoint exists.
+ */
+function scoreItemAgainstQuery(item, queryWords) {
+  if (!queryWords.length) return 0
+  const haystack = `${item.name || ''} ${item.color || ''} ${item.type || ''} ${item.category || ''} ${item.occasion || ''} ${item.season || ''}`.toLowerCase()
+  return queryWords.reduce((score, word) => (haystack.includes(word) ? score + 1 : score), 0)
+}
+
+function sortBySlotThenQueryMatch(groups, queryWords) {
+  const sorted = {}
+  for (const slot of Object.keys(groups)) {
+    sorted[slot] = [...groups[slot]].sort(
+      (a, b) => scoreItemAgainstQuery(b, queryWords) - scoreItemAgainstQuery(a, queryWords),
+    )
+  }
+  return sorted
+}
+
+/**
+ * Build outfit combinations from live wardrobe items.
+ * @param {object[]} wardrobeItems
+ * @param {string} query - the user's typed message, e.g. "What matches my blue jeans?"
+ */
+export async function generateOutfits(wardrobeItems = [], query = '') {
   await delay(400)
 
   if (!wardrobeItems.length) return []
 
-  const groups = groupItemsBySlot(wardrobeItems)
+  const queryWords = query
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter((w) => w.length > 2)
+
+  const groups = queryWords.length
+    ? sortBySlotThenQueryMatch(groupItemsBySlot(wardrobeItems), queryWords)
+    : groupItemsBySlot(wardrobeItems)
   const tops = groups.top
   const bottoms = groups.bottom
   const shoesList = groups.shoes
@@ -96,26 +132,53 @@ export async function generateOutfits(wardrobeItems = []) {
   return outfits
 }
 
-export async function postVisualization(item_ids, mode = 'overlay') {
+function toAbsoluteUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  const cleanBase = API_BASE.replace(/\/$/, '')
+  return `${cleanBase}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
+/**
+ * @param {string[]} item_ids
+ * @param {string} mode - 'overlay' or 'ai'
+ * @param {string|null} userBodyPhoto - required when mode === 'ai'; URL/path of the
+ *   user's uploaded body photo, used server-side for the actual image-to-image try-on.
+ */
+export async function postVisualization(item_ids, mode = 'overlay', userBodyPhoto = null) {
+  if (mode === 'ai' && !userBodyPhoto) {
+    throw new Error('A body photo is required for AI try-on.')
+  }
+
   const res = await fetch(`${API_BASE}/visualization`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ item_ids, mode }),
+    body: JSON.stringify({
+      item_ids,
+      mode,
+      user_body_photo_url: userBodyPhoto,
+    }),
   })
-
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
+    // Surface the real backend error (e.g. AI generation failure) instead of
+    // letting the caller assume success just because a response came back.
     throw new Error(err.detail || `Visualization request failed (${res.status})`)
   }
 
   const data = await res.json()
-  const cleanBase = API_BASE.replace(/\/$/, '')
+
   data.items = (data.items || []).map((item) => ({
     ...item,
-    image_url: item.image_url
-      ? (item.image_url.startsWith('http') ? item.image_url : `${cleanBase}${item.image_url.startsWith('/') ? '' : '/'}${item.image_url}`)
-      : '',
+    image_url: toAbsoluteUrl(item.image_url),
   }))
+
+  // ai_image_url was previously left untouched, so a generated image would try
+  // to load from the frontend's own origin and 404. Prefix it the same way.
+  if (data.ai_image_url) {
+    data.ai_image_url = toAbsoluteUrl(data.ai_image_url)
+  }
+
   return data
 }

@@ -12,13 +12,13 @@ from unittest.mock import AsyncMock, patch
 from backend.app.services.chatbot_service import (
     MOCK_WARDROBE,
     WardrobeItem,
-    build_chat_reply,
+    build_fallback_reply,
     build_wardrobe_context,
     fetch_wardrobe_items,
     parse_wardrobe_items,
     pick_outfit,
-    strip_ids_from_text,
 )
+
 
 
 class TestBuildWardrobeContext(unittest.TestCase):
@@ -110,26 +110,18 @@ class TestPickOutfit(unittest.TestCase):
         self.assertEqual(len(picks), 1)
 
 
-class TestStripIds(unittest.TestCase):
-    def test_removes_mongo_ids_and_tags(self):
-        raw = "Try tan t-shirt (id=507f1f77bcf86cd799439011) with jeans id=507f1f77bcf86cd799439012"
-        clean = strip_ids_from_text(raw)
-        self.assertNotIn("507f1f77bcf86cd799439011", clean)
-        self.assertNotIn("(id=", clean)
-        self.assertIn("tan t-shirt", clean)
-
-
-class TestBuildChatReply(unittest.TestCase):
+class TestBuildFallbackReply(unittest.TestCase):
     def test_structured_items_without_ids_in_reply(self):
         items = [
             WardrobeItem("507f1f77bcf86cd799439011", "shirt", "t-shirt", "tan", []),
             WardrobeItem("507f1f77bcf86cd799439012", "shorts", "shorts", "charcoal", []),
             WardrobeItem("507f1f77bcf86cd799439013", "shoes", "sneakers", "white", []),
         ]
-        result = build_chat_reply("what should i wear today", items)
+        result = build_fallback_reply("what should i wear today", items)
         self.assertNotIn("507f1f77bcf86cd799439011", result.reply)
         self.assertEqual(len(result.recommended_items), 3)
         self.assertEqual(result.recommended_items[0].id, "507f1f77bcf86cd799439011")
+
 
 
 class TestFetchWardrobeItems(unittest.TestCase):

@@ -35,6 +35,13 @@ function WardrobeApp() {
   useEffect(() => {
     fetchWardrobe()
       .then(setItems)
+      .catch((err) => {
+        // Previously unhandled -- a failed/erroring fetch left `items` as []
+        // with no explanation, which looked identical to "wardrobe is
+        // genuinely empty." Now it's surfaced so you can tell the difference.
+        console.error('[WardrobeApp] fetchWardrobe failed:', err)
+        notify(err.message || 'Could not load your wardrobe. Is the backend running?')
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -55,7 +62,7 @@ function WardrobeApp() {
 
   const visualizeItem = async (item) => {
     try {
-      const layout = await postVisualization([item.id])
+      const layout = await postVisualization([item.id], 'overlay')
       setActiveOutfit(layout)
     } catch {
       setActiveOutfit({ mode: 'offline', items: [], slots: [], tags: [], description: `Could not load visualization for ${item.name || item.type}. Is the backend running?` })
@@ -67,7 +74,7 @@ function WardrobeApp() {
     const item = items.find((i) => i.id === itemId)
     if (!item) {
       try {
-        const layout = await postVisualization([itemId])
+        const layout = await postVisualization([itemId], 'overlay')
         setActiveOutfit(layout)
         navigate('visualize')
       } catch (err) {
@@ -81,7 +88,7 @@ function WardrobeApp() {
   const visualizeMultipleItems = async (itemIds) => {
     if (!itemIds || itemIds.length === 0) return
     try {
-      const layout = await postVisualization(itemIds)
+      const layout = await postVisualization(itemIds, 'overlay')
       setActiveOutfit(layout)
     } catch (err) {
       notify(err.message || 'Could not visualize selected items.')
@@ -92,7 +99,7 @@ function WardrobeApp() {
   const visualizeRecommendation = async (outfit) => {
     if (outfit.item_ids && outfit.item_ids.length > 0) {
       try {
-        const layout = await postVisualization(outfit.item_ids)
+        const layout = await postVisualization(outfit.item_ids, 'overlay')
         setActiveOutfit(layout)
       } catch {
         setActiveOutfit({ mode: 'offline', items: [], slots: [], tags: [], description: 'Could not load visualization. Is the backend running?' })
@@ -102,6 +109,8 @@ function WardrobeApp() {
     }
     navigate('visualize')
   }
+
+
 
 
   const handleRemove = async (item) => {

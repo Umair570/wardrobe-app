@@ -5,6 +5,33 @@ import { getDisplayCategory, getItemSlot, SLOT_LABELS } from '../utils/outfitSlo
 const PAGE_SIZE = 6
 const OUTFIT_SLOTS = ['top', 'bottom', 'shoes', 'outerwear']
 
+function ItemThumbnail({ item }) {
+  const [failed, setFailed] = useState(false)
+
+  if (!item.image_url || failed) {
+    return (
+      <span className="text-xs text-soft text-center px-2">
+        {failed ? 'Image unavailable' : item.category}
+      </span>
+    )
+  }
+
+  return (
+    <img
+      src={item.image_url}
+      alt={item.name}
+      className="w-full h-full object-contain drop-shadow-sm"
+      onError={() => {
+        // Previously a failed load just rendered as an empty box with no
+        // signal at all. Now it falls back to a visible placeholder and
+        // logs the bad URL so it's actually diagnosable from the console.
+        console.warn(`[WardrobePage] Failed to load image for "${item.name}" (${item.id}):`, item.image_url)
+        setFailed(true)
+      }}
+    />
+  )
+}
+
 export default function WardrobePage({ items, loading, onOpenItem, onGoToUpload, onVisualizeMultiple }) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
@@ -150,11 +177,7 @@ export default function WardrobePage({ items, loading, onOpenItem, onGoToUpload,
                   </div>
 
                   <div className="aspect-square w-full mb-4 rounded-xl overflow-hidden bg-gradient-to-b from-neutral-100 to-neutral-200 border border-ink/10 flex items-center justify-center p-2 relative">
-                    {item.image_url ? (
-                      <img src={item.image_url} alt={item.name} className="w-full h-full object-contain drop-shadow-sm" />
-                    ) : (
-                      <span className="text-xs text-soft">{item.category}</span>
-                    )}
+                    <ItemThumbnail item={item} />
                   </div>
                   <div className="flex items-start justify-between mb-2">
                     <h3 className="font-semibold text-sm truncate">{item.name}</h3>

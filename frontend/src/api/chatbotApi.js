@@ -61,6 +61,23 @@ function pickLocalOutfit(wardrobeItems, message = '') {
 }
 
 /**
+ * Shape a frontend wardrobe item into the {id, category, type, color, tags}
+ * dict the backend's parse_wardrobe_items() expects.
+ */
+function toBackendItem(item) {
+  const tags = Array.isArray(item.tags)
+    ? item.tags
+    : [item.material, item.season, item.occasion].filter(Boolean)
+  return {
+    id: item.id,
+    category: item.category || 'unknown',
+    type: item.type || item.name || 'unknown',
+    color: item.color || 'unknown',
+    tags,
+  }
+}
+
+/**
  * @returns {{ reply: string, recommendedItems: Array }}
  */
 export async function sendMessage(message, { wardrobeItems = [] } = {}) {
@@ -71,6 +88,11 @@ export async function sendMessage(message, { wardrobeItems = [] } = {}) {
       body: JSON.stringify({
         message,
         user_id: 'default_user',
+        // This used to be omitted entirely, so the backend never saw the
+        // user's real (checked) wardrobe items and always fell back to its
+        // 3-item mock wardrobe — which is why every reply looked the same
+        // regardless of what was actually in the wardrobe or asked.
+        wardrobe_items: wardrobeItems.map(toBackendItem),
       }),
     })
 
