@@ -22,14 +22,12 @@ class VisualizationRequest(BaseModel):
 class VisualizationResponse(BaseModel):
     mode: str
     items: list[dict[str, Any]]
+    ai_image_url: str | None = None
 
 
 @router.post("", response_model=VisualizationResponse)
 async def visualize_outfit(request: VisualizationRequest) -> VisualizationResponse:
-    """Return 2D overlay layout for the selected garment items.
-
-    The frontend renders each returned item as a transparent PNG positioned
-    absolutely over a mannequin canvas using the position and z_index fields.
-    """
-    result = await VisualizationService().build_response(request.item_ids)
-    return VisualizationResponse(**result)
+    """Return 2D overlay layout or Gemini AI try-on for the selected garment items."""
+    result = await VisualizationService().build_response(request.item_ids, mode=request.mode)
+    return VisualizationResponse(**result)
+

@@ -67,16 +67,40 @@ Z_INDEX: dict[str, int] = {
 
 
 class VisualizationService:
-    """Builds 2D overlay response from selected wardrobe item IDs."""
+    """Builds 2D overlay or Gemini AI image try-on response from selected item IDs."""
 
-    async def build_response(self, item_ids: list[str]) -> dict[str, Any]:
-        """Full pipeline: fetch -> validate -> build layout -> return response."""
+    async def build_response(self, item_ids: list[str], mode: str = "overlay") -> dict[str, Any]:
+        """Full pipeline: fetch -> validate -> build layout or generate AI image -> return response."""
         docs = await self._get_selected_items(item_ids)
         slot_map = self._assign_slots(docs)
+        items_payload = [self._build_item_payload(slot, doc) for slot, doc in slot_map.items()]
+
+        if mode == "ai":
+            try:
+                try:
+                    from app.services.image_generation_service import generate_image  # type: ignore[import]
+                except ImportError:
+                    from backend.app.services.image_generation_service import generate_image  # type: ignore[import]
+
+                descriptions = [
+                    f"{doc.get('color', '')} {doc.get('type', doc.get('category', 'clothing'))}".strip()
+                    for doc in docs
+                ]
+                prompt = ", ".join(descriptions)
+                ai_image_url = generate_image(prompt, "gemini")
+                return {
+                    "mode": "ai",
+                    "ai_image_url": ai_image_url,
+                    "items": items_payload,
+                }
+            except Exception as err:
+                print(f"[VisualizationService] AI mode fallback notice ({err})")
+
         return {
             "mode": "overlay",
-            "items": [self._build_item_payload(slot, doc) for slot, doc in slot_map.items()],
+            "items": items_payload,
         }
+
 
     # ── Private helpers ────────────────────────────────────────────────────────
 

@@ -96,12 +96,13 @@ export async function generateOutfits(wardrobeItems = []) {
   return outfits
 }
 
-export async function postVisualization(item_ids) {
+export async function postVisualization(item_ids, mode = 'overlay') {
   const res = await fetch(`${API_BASE}/visualization`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ item_ids, mode: 'overlay' }),
+    body: JSON.stringify({ item_ids, mode }),
   })
+
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))

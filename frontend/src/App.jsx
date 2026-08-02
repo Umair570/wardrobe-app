@@ -111,6 +111,19 @@ function WardrobeApp() {
     navigate('wardrobe')
   }
 
+  const [userBodyPhoto, setUserBodyPhoto] = useState(() => localStorage.getItem('user_body_photo') || '')
+
+  const handleSaveUserBodyPhoto = (photoDataUrl) => {
+    setUserBodyPhoto(photoDataUrl)
+    if (photoDataUrl) {
+      localStorage.setItem('user_body_photo', photoDataUrl)
+      notify('Body photo template saved')
+    } else {
+      localStorage.removeItem('user_body_photo')
+      notify('Body photo template removed')
+    }
+  }
+
   return (
     <div className="min-h-full flex flex-col">
       {/* 1. Pass onNavigate to Nav so the profile dropdown can switch pages */}
@@ -136,7 +149,6 @@ function WardrobeApp() {
           />
         )}
 
-
         {page === 'details' && (
           <ItemDetailsPage
             item={activeItem}
@@ -150,11 +162,14 @@ function WardrobeApp() {
         {page === 'visualize' && (
           <OutfitVisualizationPage
             outfit={activeOutfit}
+            userBodyPhoto={userBodyPhoto}
+            onSaveUserBodyPhoto={handleSaveUserBodyPhoto}
             onBack={() => navigate('wardrobe')}
             onChangeClothing={() => navigate('wardrobe')}
             onGenerateAnother={() => navigate('recommended')}
           />
         )}
+
 
         {page === 'stylist' && (
           <StylistPage
