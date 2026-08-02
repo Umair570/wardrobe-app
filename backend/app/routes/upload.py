@@ -1,16 +1,25 @@
 import os
 import uuid
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from datetime import datetime
 
 from app.database.mongodb import wardrobe_collection, settings
 from app.database.models import WardrobeItemOut
-# WMVP-14: uncomment once Umair's classification_service is merged
-# from app.services.classification_service import classify_image
+from app.ml_loader import process_wardrobe_upload
 
 router = APIRouter(prefix="/upload", tags=["upload"])
 
 ALLOWED_TYPES = {"image/jpeg", "image/png"}
+
+# Map Umair's error codes to appropriate HTTP status codes
+ERROR_CODE_STATUS = {
+    "NOT_FOUND": 404,
+    "BLURRY_IMAGE": 422,
+    "SEG_ERROR": 500,
+    "NO_CLOTHING": 422,
+    "CLASS_ERROR": 500,
+}
 
 async def save_upload(file: UploadFile, upload_dir: str) -> str:
     if file.content_type not in ALLOWED_TYPES:
@@ -30,25 +39,33 @@ async def save_upload(file: UploadFile, upload_dir: str) -> str:
 
     return filepath
 
-@router.post("/", response_model=WardrobeItemOut)
+@router.post("/", response_model=list[WardrobeItemOut])
 async def upload_item(file: UploadFile = File(...)):
-    filepath = await save_upload(file, settings.upload_dir)
+    source_path = await save_upload(file, settings.upload_dir)
 
-    # WMVP-14: replace None/None with real classify_image(filepath) output
-    category, color = None, None
+    result = await run_in_threadpool(process_wardrobe_upload, source_path)
 
-    doc = {
-        "image_path": filepath,
-        "category": category,
-        "color": color,
-        "uploaded_at": datetime.utcnow(),
-    }
-    result = await wardrobe_collection.insert_one(doc)
+    if not result["success"]:
+        status_code = ERROR_CODE_STATUS.get(result.get("code"), 500)
+        raise HTTPException(status_code=status_code, detail=result["error"])
 
-    return WardrobeItemOut(
-        id=str(result.inserted_id),
-        image_path=doc["image_path"],
-        category=doc["category"],
-        color=doc["color"],
-        uploaded_at=doc["uploaded_at"],
-    )
+    created_items = []
+    for item in result["items"]:
+        doc = {
+            "source_image": source_path,
+            "segmentation_path": item["segmentation_path"],
+            "area_ratio": item["area_ratio"],
+            "category": item["category"],
+            "type": item["type"],
+            "style": item["style"],
+            "season": item["season"],
+            "pattern": item["pattern"],
+            "color": item["color"],
+            "tags": item["tags"],
+            "confidence_scores": item["confidence_scores"],
+            "uploaded_at": datetime.utcnow(),
+        }
+        db_result = await wardrobe_collection.insert_one(doc)
+        created_items.append(WardrobeItemOut(id=str(db_result.inserted_id), **doc))
+
+    return created_items

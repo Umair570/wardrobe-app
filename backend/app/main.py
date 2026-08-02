@@ -19,3 +19,9 @@ app.include_router(visualization.router)
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+@app.on_event("startup")
+async def load_ml_models():
+    print("Loading ML models (segmentation + classification)...")
+    import app.ml_loader
+    print("ML models loaded successfully.")
