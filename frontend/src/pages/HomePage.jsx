@@ -270,9 +270,152 @@
 
 
 
+// import StatsCarousel from '../components/StatsCarousel';
+// import AnimatedOutfitMatch from '../components/AnimatedOutfitMatch';
+// import { Sparkles, Upload, Shirt, MessageSquare, ArrowRight, Layers } from 'lucide-react';
+
+// export default function HomePage({ onNavigate, items = [] }) {
+//   const totalItems = items.length;
+
+//   return (
+//     <div className="max-w-7xl mx-auto px-6 py-8 space-y-12">
+      
+//       {/* --- HERO SECTION --- */}
+//       <section className="grid md:grid-cols-2 gap-10 items-center pt-4 pb-8">
+//         {/* Left Column */}
+//         <div className="space-y-6">
+//           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-black/5 text-black border border-black/10">
+//             <Sparkles className="w-3.5 h-3.5 text-black" />
+//             <span>AI-Powered Personal Stylist</span>
+//           </div>
+
+//           <h1 className="text-4xl sm:text-5xl font-extrabold text-black tracking-tight leading-tight">
+//             Your Digital Wardrobe, Reinvented.
+//           </h1>
+
+//           <p className="text-black/80 text-base sm:text-lg leading-relaxed max-w-lg">
+//             Upload your clothes, let AI automatically classify them, and generate personalized outfit recommendations tailored to your style.
+//           </p>
+
+//           <div className="flex flex-wrap gap-4 pt-2">
+//             <button
+//               onClick={() => onNavigate('upload')}
+//               className="inline-flex items-center gap-2 bg-black hover:bg-black/80 text-white font-medium px-6 py-3 rounded-xl shadow-md transition-all"
+//             >
+//               <Upload className="w-4 h-4" />
+//               Upload Clothing
+//             </button>
+
+//             <button
+//               onClick={() => onNavigate('wardrobe')}
+//               className="inline-flex items-center gap-2 bg-white hover:bg-black/5 text-black border border-black/20 font-medium px-6 py-3 rounded-xl shadow-sm transition-all"
+//             >
+//               View Wardrobe
+//               <ArrowRight className="w-4 h-4" />
+//             </button>
+//           </div>
+//         </div>
+
+//         {/* Right Column: Dynamic Animated Outfit Card */}
+//         <div className="relative">
+//           <AnimatedOutfitMatch />
+//         </div>
+//       </section>
+
+//       {/* --- STATS CAROUSEL --- */}
+//       <section>
+//         <StatsCarousel items={items} />
+//       </section>
+
+//       {/* --- DASHBOARD STATS & QUICK ACCESS --- */}
+//       <section className="grid sm:grid-cols-3 gap-6">
+//         <div 
+//           onClick={() => onNavigate('wardrobe')}
+//           className="bg-white/90 border border-black/15 rounded-2xl p-6 shadow-sm hover:border-black/40 transition-all cursor-pointer group"
+//         >
+//           <div className="flex items-center justify-between mb-4">
+//             <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center">
+//               <Shirt className="w-5 h-5" />
+//             </div>
+//             <span className="text-2xl font-black text-black">{totalItems}</span>
+//           </div>
+//           <h3 className="text-base font-bold text-black group-hover:underline">My Wardrobe</h3>
+//           <p className="text-xs text-black/70 mt-1">Browse and manage all clothing items in one place.</p>
+//         </div>
+
+//         <div 
+//           onClick={() => onNavigate('stylist')}
+//           className="bg-white/90 border border-black/15 rounded-2xl p-6 shadow-sm hover:border-black/40 transition-all cursor-pointer group"
+//         >
+//           <div className="flex items-center justify-between mb-4">
+//             <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center">
+//               <MessageSquare className="w-5 h-5" />
+//             </div>
+//             <span className="text-xs font-bold px-2.5 py-1 bg-black text-white rounded-md">Active</span>
+//           </div>
+//           <h3 className="text-base font-bold text-black group-hover:underline">AI Stylist</h3>
+//           <p className="text-xs text-black/70 mt-1">Chat with your AI assistant for personalized outfits.</p>
+//         </div>
+
+//         <div 
+//           onClick={() => onNavigate('upload')}
+//           className="bg-white/90 border border-black/15 rounded-2xl p-6 shadow-sm hover:border-black/40 transition-all cursor-pointer group"
+//         >
+//           <div className="flex items-center justify-between mb-4">
+//             <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center">
+//               <Upload className="w-5 h-5" />
+//             </div>
+//             <span className="text-xs font-bold text-black">+ New</span>
+//           </div>
+//           <h3 className="text-base font-bold text-black group-hover:underline">Upload Item</h3>
+//           <p className="text-xs text-black/70 mt-1">Add new items with automatic background removal.</p>
+//         </div>
+//       </section>
+
+//       {/* --- HOW IT WORKS WORKFLOW --- */}
+//       <section className="bg-white/90 border border-black/15 rounded-3xl p-8 shadow-sm space-y-6">
+//         <div className="border-b border-black/10 pb-4">
+//           <h2 className="text-xl font-bold text-black">How AI Wardrobe Works</h2>
+//           <p className="text-xs font-medium text-black/60 mt-0.5">Automated detection and style recommendation engine</p>
+//         </div>
+
+//         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+//           <div className="space-y-2">
+//             <span className="text-2xl font-black text-black">01</span>
+//             <h4 className="text-sm font-bold text-black">Upload Photo</h4>
+//             <p className="text-xs text-black/70">Take or upload a photo of your clothing item.</p>
+//           </div>
+
+//           <div className="space-y-2">
+//             <span className="text-2xl font-black text-black">02</span>
+//             <h4 className="text-sm font-bold text-black">AI Detection</h4>
+//             <p className="text-xs text-black/70">Our AI detects, classifies, and removes the background.</p>
+//           </div>
+
+//           <div className="space-y-2">
+//             <span className="text-2xl font-black text-black">03</span>
+//             <h4 className="text-sm font-bold text-black">Build Wardrobe</h4>
+//             <p className="text-xs text-black/70">Items are saved to your digital wardrobe automatically.</p>
+//           </div>
+
+//           <div className="space-y-2">
+//             <span className="text-2xl font-black text-black">04</span>
+//             <h4 className="text-sm font-bold text-black">Get Outfits</h4>
+//             <p className="text-xs text-black/70">Ask the AI stylist for tailored outfit recommendations.</p>
+//           </div>
+//         </div>
+//       </section>
+
+//     </div>
+//   );
+// }
+
+
+// src/pages/HomePage.jsx
 import StatsCarousel from '../components/StatsCarousel';
 import AnimatedOutfitMatch from '../components/AnimatedOutfitMatch';
-import { Sparkles, Upload, Shirt, MessageSquare, ArrowRight, Layers } from 'lucide-react';
+import WardrobeInsights from '../components/WardrobeInsights';
+import { Sparkles, Upload, Shirt, MessageSquare, ArrowRight } from 'lucide-react';
 
 export default function HomePage({ onNavigate, items = [] }) {
   const totalItems = items.length;
@@ -320,6 +463,11 @@ export default function HomePage({ onNavigate, items = [] }) {
         <div className="relative">
           <AnimatedOutfitMatch />
         </div>
+      </section>
+
+      {/* --- WARDROBE INSIGHTS (SLIDING WINDOW) --- */}
+      <section>
+        <WardrobeInsights />
       </section>
 
       {/* --- STATS CAROUSEL --- */}

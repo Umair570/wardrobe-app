@@ -9,21 +9,33 @@ export default function AuthPage() {
   const notify = useToast()
 
   const [mode, setMode] = useState('login') // 'login' or 'signup'
+
+  // Form Fields
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+
   const [loading, setLoading] = useState(false)
 
+  // Switch between Login and Signup modes cleanly
+  const handleModeSwitch = (newMode) => {
+    setMode(newMode)
+  }
+
+  // Handle Form Submission
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
 
     try {
       if (mode === 'login') {
+        // --- LOG IN FLOW ---
         await login(email, password)
         notify('Logged in successfully!')
       } else {
-        await signup(email, password)
-        notify('Account created! Please check your email to confirm.')
+        // --- SIGN UP FLOW ---
+        await signup(email, password, { full_name: fullName })
+        notify('Account created successfully! Please check your email to verify.')
       }
     } catch (err) {
       notify(err.message || 'Authentication failed')
@@ -40,7 +52,7 @@ export default function AuthPage() {
         <div className="flex bg-ink/5 p-1 rounded-xl mb-6">
           <button
             type="button"
-            onClick={() => setMode('login')}
+            onClick={() => handleModeSwitch('login')}
             className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
               mode === 'login' ? 'bg-white shadow-sm text-ink' : 'text-ink/60 hover:text-ink'
             }`}
@@ -49,7 +61,7 @@ export default function AuthPage() {
           </button>
           <button
             type="button"
-            onClick={() => setMode('signup')}
+            onClick={() => handleModeSwitch('signup')}
             className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
               mode === 'signup' ? 'bg-white shadow-sm text-ink' : 'text-ink/60 hover:text-ink'
             }`}
@@ -59,6 +71,23 @@ export default function AuthPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          
+          {/* SIGN UP FULL NAME FIELD */}
+          {mode === 'signup' && (
+            <div>
+              <label className="block text-xs font-semibold text-ink/70 mb-1">Full Name</label>
+              <input
+                type="text"
+                placeholder="Jane Doe"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+                className="w-full p-3 border border-ink/15 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+          )}
+
+          {/* EMAIL FIELD */}
           <div>
             <label className="block text-xs font-semibold text-ink/70 mb-1">Email</label>
             <input
@@ -71,6 +100,7 @@ export default function AuthPage() {
             />
           </div>
 
+          {/* PASSWORD FIELD */}
           <div>
             <label className="block text-xs font-semibold text-ink/70 mb-1">Password</label>
             <input
@@ -84,6 +114,7 @@ export default function AuthPage() {
             />
           </div>
 
+          {/* LOGIN EXTRA OPTIONS */}
           {mode === 'login' && (
             <div className="flex items-center justify-between text-xs mt-1">
               <label className="flex items-center gap-2 text-ink/70 cursor-pointer">
@@ -91,7 +122,6 @@ export default function AuthPage() {
                 Remember me
               </label>
               
-              {/* Working Clickable Forgot Password Link */}
               <Link 
                 to="/forgot-password" 
                 className="text-accent hover:underline font-medium"
@@ -101,6 +131,7 @@ export default function AuthPage() {
             </div>
           )}
 
+          {/* SUBMIT BUTTON */}
           <button
             type="submit"
             disabled={loading}
