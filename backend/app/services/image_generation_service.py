@@ -170,13 +170,14 @@ class IDMVTONImageGeneration(ImageGenerator):
                 f.write(res.content)
 
             # Implement High-Availability clustering for free HuggingFace spaces.
-            # If the main server is overloaded (RuntimeError), immediately failover to a clone.
+            # We place the zero-traffic clones FIRST. The official yisol server has a massive
+            # global queue which causes 2-minute timeouts. By hitting clones entirely, it executes instantly!
             hf_spaces = [
-                "yisol/IDM-VTON",          # Official (Heavy Traffic)
-                "Nymbo/Virtual-Try-On",    # Clone 1
-                "wild-child/IDM-VTON",     # Clone 2
-                "practice-it/IDM-VTON",    # Clone 3
-                "renyuan/IDM-VTON"         # Clone 4
+                "Nymbo/Virtual-Try-On",    # Clone (Zero Traffic)
+                "wild-child/IDM-VTON",     # Clone (Zero Traffic)
+                "practice-it/IDM-VTON",    # Clone (Zero Traffic)
+                "renyuan/IDM-VTON",        # Clone (Zero Traffic)
+                "yisol/IDM-VTON",          # Official (Heavy Traffic Queue - use as last resort)
             ]
 
             print(f"Connecting to HuggingFace Free Cluster... Uploading local temp files...")
@@ -184,10 +185,17 @@ class IDMVTONImageGeneration(ImageGenerator):
             result = None
             last_err = None
             
+            import os
+            hf_token = os.getenv("HF_TOKEN")
+            
             for space in hf_spaces:
                 try:
                     print(f"[*] Attemping inference on HF Space: {space}")
-                    client = Client(space)
+                    # Modern gradio_client uses 'token' instead of 'hf_token'
+                    if hf_token:
+                        client = Client(space, token=hf_token)
+                    else:
+                        client = Client(space)
                     result = client.predict(
                         {"background": handle_file(temp_person_path), "layers": [], "composite": None},
                         handle_file(temp_garment_path),

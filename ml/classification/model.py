@@ -8,9 +8,12 @@ Architecture: FashionCLIP (patrickjohncyh/fashion-clip)
 """
 
 import torch
+import os
+from dotenv import load_dotenv
+load_dotenv()
 from transformers import CLIPProcessor, CLIPModel
 
-_FASHION_CLIP_ID = "patrickjohncyh/fashion-clip"
+_FASHION_CLIP_ID = os.getenv("FASHION_CLIP_MODEL_NAME", "patrickjohncyh/fashion-clip")
 
 print("Loading FashionCLIP for zero-shot clothing classification...")
 CLIP_CLASSIFIER_PROCESSOR = CLIPProcessor.from_pretrained(_FASHION_CLIP_ID)
