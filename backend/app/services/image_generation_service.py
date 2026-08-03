@@ -132,23 +132,112 @@ class GeminiImageGeneration(ImageGenerator):
         return f"{self.OUTPUT_URL_PREFIX}/{filename}"
 
 
-class QwenImageGeneration(ImageGenerator):
+class IDMVTONImageGeneration(ImageGenerator):
+    OUTPUT_DIR = Path("static/generated")
+    OUTPUT_URL_PREFIX = "/static/generated"
+
     def generate_img(
         self,
         prompt: str,
         person_image_b64: str | None = None,
         garment_image_urls: list[str] | None = None,
     ) -> str:
-        # Not wired up. The old version returned a plain string labeled as an
-        # "image" -- that's fake output, so it's removed rather than kept as
-        # a silent no-op. Qwen-Image-Edit does support try-on (via Alibaba's
-        # DashScope API), but it needs its own request/response handling --
-        # ping me if you want this built out; don't route to this class until
-        # then, or wire your frontend's provider toggle to only offer Gemini.
-        raise NotImplementedError(
-            "QwenImageGeneration is not implemented yet. Use 'gemini' as the "
-            "provider until this is built."
-        )
+        if not person_image_b64 or not garment_image_urls:
+            raise ValueError("IDM-VTON requires both a person image and at least one garment image.")
+
+        import uuid
+        import tempfile
+        import base64
+        import os
+        from gradio_client import Client, handle_file
+
+        fd_person, temp_person_path = tempfile.mkstemp(suffix=".jpg")
+        fd_garment, temp_garment_path = tempfile.mkstemp(suffix=".png")
+
+        try:
+            # 1. Decode person photo
+            with os.fdopen(fd_person, 'wb') as f:
+                f.write(base64.b64decode(person_image_b64))
+
+            # 2. Fetch the garment file and write raw bytes to temp
+            import httpx
+            garment_url = garment_image_urls[0]
+            with httpx.Client(timeout=15.0) as http_client:
+                res = http_client.get(garment_url)
+            res.raise_for_status()
+            
+            with os.fdopen(fd_garment, 'wb') as f:
+                f.write(res.content)
+
+            # Implement High-Availability clustering for free HuggingFace spaces.
+            # If the main server is overloaded (RuntimeError), immediately failover to a clone.
+            hf_spaces = [
+                "yisol/IDM-VTON",          # Official (Heavy Traffic)
+                "Nymbo/Virtual-Try-On",    # Clone 1
+                "wild-child/IDM-VTON",     # Clone 2
+                "practice-it/IDM-VTON",    # Clone 3
+                "renyuan/IDM-VTON"         # Clone 4
+            ]
+
+            print(f"Connecting to HuggingFace Free Cluster... Uploading local temp files...")
+            
+            result = None
+            last_err = None
+            
+            for space in hf_spaces:
+                try:
+                    print(f"[*] Attemping inference on HF Space: {space}")
+                    client = Client(space)
+                    result = client.predict(
+                        {"background": handle_file(temp_person_path), "layers": [], "composite": None},
+                        handle_file(temp_garment_path),
+                        prompt,
+                        True,   # is_checked (Auto-crop & Resizing)
+                        False,  # is_checked_crop
+                        30,     # denoise_steps
+                        42,     # seed
+                        api_name="/tryon"
+                    )
+                    if result:
+                        print(f"[+] Successfully generated image using {space}!")
+                        break
+                except Exception as e:
+                    print(f"[-] Space {space} failed or is overloaded: {e}")
+                    last_err = e
+                    continue
+            
+            if not result:
+                raise RuntimeError(f"All free HuggingFace clustered spaces are currently overloaded. Last error: {last_err}")
+
+            # result is a tuple, index 0 is the output image path (saved in gradio's local cache)
+            if isinstance(result, (list, tuple)):
+                out_img_path = result[0]
+            else:
+                out_img_path = result
+
+            # Read the generated image and save to static
+            with open(out_img_path, "rb") as f:
+                image_bytes = f.read()
+            out_b64 = base64.b64encode(image_bytes).decode("utf-8")
+            
+            return self._save_image(out_b64)
+
+        finally:
+            for p in [temp_person_path, temp_garment_path]:
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
+
+    def _save_image(self, image_b64: str) -> str:
+        self.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        import uuid
+        filename = f"vton_{uuid.uuid4().hex}.png"
+        path = self.OUTPUT_DIR / filename
+        import base64
+        path.write_bytes(base64.b64decode(image_b64))
+        return f"{self.OUTPUT_URL_PREFIX}/{filename}"
 
 
 class ImageGenerationFactory:
@@ -159,8 +248,8 @@ class ImageGenerationFactory:
 
         if name_lower == "gemini":
             return GeminiImageGeneration()
-        if name_lower == "qwen":
-            return QwenImageGeneration()
+        if name_lower == "idm-vton":
+            return IDMVTONImageGeneration()
         raise ValueError(f"Unknown generator model: {generator_name}")
 
 

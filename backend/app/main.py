@@ -19,6 +19,10 @@ app.add_middleware(
 os.makedirs(settings.upload_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
+# Mount static directory for AI generated outputs
+os.makedirs("static/generated", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # Two possible locations for ML cutouts depending on which working directory
 # the segmentation pipeline was run from. Rather than copying files between
 # them once at startup (which misses anything written after boot -- that was

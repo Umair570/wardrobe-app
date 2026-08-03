@@ -111,9 +111,11 @@ class VisualizationService:
             prompt = ", ".join(descriptions)
 
             try:
-                ai_image_url = generate_image(
+                from starlette.concurrency import run_in_threadpool
+                ai_image_url = await run_in_threadpool(
+                    generate_image,
                     prompt,
-                    "gemini",
+                    "idm-vton",
                     person_image_b64=person_image_b64,
                     garment_image_urls=garment_image_urls,
                 )

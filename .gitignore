@@ -67,3 +67,11 @@ ml/test_images/*
 .DS_Store
 Thumbs.db
 
+# Images
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.bmp
+*.tiff
