@@ -29,33 +29,50 @@ print("FashionCLIP classifier loaded.\n")
 CATEGORY_LABELS = [
     # Tops
     "shirt", "t-shirt", "blouse", "polo shirt", "tank top", "crop top",
-    "henley shirt", "button-down shirt", "flannel shirt",
+    "henley shirt", "button-down shirt", "flannel shirt", 
+    "tunic", "peplum top", "halter top", "tube top", "camisole",
+    "long sleeve shirt", "baseball t-shirt", "graphic tee",
     # Bottoms
     "pants", "jeans", "trousers", "chinos", "cargo pants",
-    "shorts", "bermuda shorts", "denim shorts",
-    "leggings", "joggers", "sweatpants",
+    "shorts", "bermuda shorts", "denim shorts", "board shorts",
+    "leggings", "joggers", "sweatpants", "yoga pants",
+    "palazzo pants", "culottes", "flare jeans", "skinny jeans",
     # Dresses & Skirts
     "dress", "maxi dress", "mini dress", "sundress", "evening gown",
     "skirt", "mini skirt", "maxi skirt", "pleated skirt",
+    "midi skirt", "pencil skirt", "wrap dress", "shirt dress", "midi dress",
     # Outerwear
     "jacket", "coat", "blazer", "windbreaker", "parka",
     "leather jacket", "denim jacket", "bomber jacket",
-    "cardigan", "vest", "gilet",
+    "cardigan", "vest", "gilet", "trench coat", "pea coat",
+    "puffer jacket", "poncho", "cape", "shacket", "fleece jacket",
     # Knitwear
     "sweater", "hoodie", "sweatshirt", "pullover", "turtleneck",
+    "v-neck sweater", "crewneck sweater", "chunky knit sweater",
     # Suits & Formal
-    "suit", "waistcoat",
+    "suit", "waistcoat", "tuxedo", "suit jacket", "dress pants",
+    # Traditional & Specialty
+    "kurta", "shalwar kameez", "saree", "kimono", "abaya", "thobe", "kaftan",
+    "jumpsuit", "romper", "overalls", "dungarees",
+    # Lingerie & Sleepwear
+    "pajamas", "nightgown", "robe", "bra", "sports bra", "underwear", "boxers", "briefs",
+    # Swimwear
+    "swimsuit", "bikini", "swim trunks", "rash guard",
     # Footwear
     "shoes", "sneakers", "boots", "sandals", "heels",
     "loafers", "oxford shoes", "ankle boots", "flip flops",
-    "running shoes", "slippers",
+    "running shoes", "slippers", "combat boots", "chelsea boots",
+    "snow boots", "espadrilles", "mules", "slide sandals", "brogues",
+    "high tops", "wedge heels", "ballet flats",
     # Bags
     "bag", "handbag", "backpack", "tote bag", "clutch",
-    "messenger bag", "crossbody bag", "duffel bag", "wallet", "purse",
+    "messenger bag", "crossbody bag", "duffel bag", "wallet", "purse", "fanny pack",
     # Accessories
-    "scarf", "hat", "cap", "belt", "tie", "bow tie",
-    "watch", "sunglasses", "gloves", "beanie",
-    "necklace", "bracelet", "earrings", "ring",
+    "scarf", "winter scarf", "silk scarf", "pashmina",
+    "hat", "cap", "baseball cap", "fedora", "bucket hat", "visor", "beanie",
+    "belt", "tie", "bow tie", "suspenders",
+    "watch", "sunglasses", "gloves", 
+    "necklace", "bracelet", "earrings", "ring", "cufflinks",
 ]
 
 # Map every granular label → broad parent category
@@ -63,39 +80,67 @@ CATEGORY_MAP = {
     # Tops
     "shirt": "shirt", "t-shirt": "shirt", "blouse": "shirt", "polo shirt": "shirt",
     "tank top": "shirt", "crop top": "shirt", "henley shirt": "shirt",
-    "button-down shirt": "shirt", "flannel shirt": "shirt",
+    "button-down shirt": "shirt", "flannel shirt": "shirt", "tunic": "shirt",
+    "peplum top": "shirt", "halter top": "shirt", "tube top": "shirt",
+    "camisole": "shirt", "long sleeve shirt": "shirt", "baseball t-shirt": "shirt",
+    "graphic tee": "shirt",
     # Bottoms
     "pants": "pants", "jeans": "pants", "trousers": "pants", "chinos": "pants",
-    "cargo pants": "pants", "leggings": "pants", "joggers": "pants", "sweatpants": "pants",
+    "cargo pants": "pants", "leggings": "pants", "joggers": "pants",
+    "sweatpants": "pants", "yoga pants": "pants", "palazzo pants": "pants",
+    "culottes": "pants", "flare jeans": "pants", "skinny jeans": "pants",
     "shorts": "shorts", "bermuda shorts": "shorts", "denim shorts": "shorts",
+    "board shorts": "shorts",
     # Dresses & Skirts
     "dress": "dress", "maxi dress": "dress", "mini dress": "dress",
-    "sundress": "dress", "evening gown": "dress",
-    "skirt": "skirt", "mini skirt": "skirt", "maxi skirt": "skirt", "pleated skirt": "skirt",
+    "sundress": "dress", "evening gown": "dress", "wrap dress": "dress",
+    "shirt dress": "dress", "midi dress": "dress",
+    "skirt": "skirt", "mini skirt": "skirt", "maxi skirt": "skirt",
+    "pleated skirt": "skirt", "midi skirt": "skirt", "pencil skirt": "skirt",
     # Outerwear
     "jacket": "jacket", "coat": "jacket", "blazer": "jacket", "windbreaker": "jacket",
     "parka": "jacket", "leather jacket": "jacket", "denim jacket": "jacket",
     "bomber jacket": "jacket", "cardigan": "jacket", "vest": "jacket", "gilet": "jacket",
+    "trench coat": "jacket", "pea coat": "jacket", "puffer jacket": "jacket",
+    "poncho": "jacket", "cape": "jacket", "shacket": "jacket", "fleece jacket": "jacket",
     # Knitwear
     "sweater": "sweater", "hoodie": "sweater", "sweatshirt": "sweater",
-    "pullover": "sweater", "turtleneck": "sweater",
-    # Suits
-    "suit": "suit", "waistcoat": "suit",
+    "pullover": "sweater", "turtleneck": "sweater", "v-neck sweater": "sweater",
+    "crewneck sweater": "sweater", "chunky knit sweater": "sweater",
+    # Suits & Formal
+    "suit": "suit", "waistcoat": "suit", "tuxedo": "suit", "suit jacket": "suit",
+    "dress pants": "suit",
+    # Traditional & Specialty
+    "kurta": "traditional", "shalwar kameez": "traditional", "saree": "traditional",
+    "kimono": "traditional", "abaya": "traditional", "thobe": "traditional", "kaftan": "traditional",
+    "jumpsuit": "one-piece", "romper": "one-piece", "overalls": "one-piece", "dungarees": "one-piece",
+    # Lingerie & Sleepwear
+    "pajamas": "sleepwear", "nightgown": "sleepwear", "robe": "sleepwear",
+    "bra": "underwear", "sports bra": "underwear", "underwear": "underwear",
+    "boxers": "underwear", "briefs": "underwear",
+    # Swimwear
+    "swimsuit": "swimwear", "bikini": "swimwear", "swim trunks": "swimwear", "rash guard": "swimwear",
     # Footwear
     "shoes": "shoes", "sneakers": "shoes", "boots": "shoes", "sandals": "shoes",
     "heels": "shoes", "loafers": "shoes", "oxford shoes": "shoes",
     "ankle boots": "shoes", "flip flops": "shoes", "running shoes": "shoes",
-    "slippers": "shoes",
+    "slippers": "shoes", "combat boots": "shoes", "chelsea boots": "shoes",
+    "snow boots": "shoes", "espadrilles": "shoes", "mules": "shoes",
+    "slide sandals": "shoes", "brogues": "shoes", "high tops": "shoes",
+    "wedge heels": "shoes", "ballet flats": "shoes",
     # Bags
     "bag": "bag", "handbag": "bag", "backpack": "bag", "tote bag": "bag",
     "clutch": "bag", "messenger bag": "bag", "crossbody bag": "bag",
-    "duffel bag": "bag", "wallet": "bag", "purse": "bag",
+    "duffel bag": "bag", "wallet": "bag", "purse": "bag", "fanny pack": "bag",
     # Accessories
-    "scarf": "accessory", "hat": "accessory", "cap": "accessory", "belt": "accessory",
-    "tie": "accessory", "bow tie": "accessory", "watch": "accessory",
-    "sunglasses": "accessory", "gloves": "accessory", "beanie": "accessory",
+    "scarf": "accessory", "winter scarf": "accessory", "silk scarf": "accessory",
+    "pashmina": "accessory", "hat": "accessory", "cap": "accessory",
+    "baseball cap": "accessory", "fedora": "accessory", "bucket hat": "accessory",
+    "visor": "accessory", "beanie": "accessory", "belt": "accessory",
+    "tie": "accessory", "bow tie": "accessory", "suspenders": "accessory",
+    "watch": "accessory", "sunglasses": "accessory", "gloves": "accessory",
     "necklace": "accessory", "bracelet": "accessory", "earrings": "accessory",
-    "ring": "accessory",
+    "ring": "accessory", "cufflinks": "accessory",
 }
 
 # ── STYLE / FORMALITY LABELS ─────────────────────────────────────────────────
@@ -129,17 +174,47 @@ STYLE_MAP = {
 # ── SEASON LABELS ─────────────────────────────────────────────────────────────
 
 SEASON_LABELS = [
-    "summer lightweight breathable clothing",
-    "winter warm thick heavy clothing",
-    "spring autumn transitional layering clothing",
-    "all-season versatile year-round clothing",
+    "clothing for summer weather like t-shirt, shorts, tank top, sundress, short sleeves",
+    "clothing for winter weather like heavy coat, parka, sweater, scarf, thick jacket",
+    "clothing for spring or autumn weather like light jacket, long sleeve shirt, cardigan",
+    "all-season versatile year-round clothing like jeans, basic pants, sneakers",
 ]
 
 SEASON_MAP = {
-    "summer lightweight breathable clothing": "summer",
-    "winter warm thick heavy clothing": "winter",
-    "spring autumn transitional layering clothing": "spring/fall",
-    "all-season versatile year-round clothing": "all-season",
+    "clothing for summer weather like t-shirt, shorts, tank top, sundress, short sleeves": "summer",
+    "clothing for winter weather like heavy coat, parka, sweater, scarf, thick jacket": "winter",
+    "clothing for spring or autumn weather like light jacket, long sleeve shirt, cardigan": "spring/fall",
+    "all-season versatile year-round clothing like jeans, basic pants, sneakers": "all-season",
+}
+
+# Override season based on the exact garment type to prevent logic flaws
+SEASON_OVERRIDE = {
+    "t-shirt": "summer",
+    "tank top": "summer",
+    "shorts": "summer",
+    "bermuda shorts": "summer",
+    "denim shorts": "summer",
+    "board shorts": "summer",
+    "sundress": "summer",
+    "skirt": "summer",
+    "mini skirt": "summer",
+    "maxi skirt": "summer",
+    "pleated skirt": "summer",
+    "flip flops": "summer",
+    "sandals": "summer",
+    "swimsuit": "summer",
+    "bikini": "summer",
+    "swim trunks": "summer",
+    "coat": "winter",
+    "parka": "winter",
+    "scarf": "winter",
+    "winter scarf": "winter",
+    "beanie": "winter",
+    "gloves": "winter",
+    "snow boots": "winter",
+    "turtleneck": "winter",
+    "puffer jacket": "winter",
+    "chunky knit sweater": "winter",
 }
 
 # ── PATTERN LABELS ────────────────────────────────────────────────────────────
@@ -171,8 +246,8 @@ PATTERN_MAP = {
 }
 
 # ── COMPLETE COLOR PALETTE ────────────────────────────────────────────────────
-# 50+ named colors covering every common fashion shade.
-# RGB values tuned to match real-world fabric colors, not pure digital values.
+# 100+ named colors covering every common fashion shade.
+# RGB values tuned to match real-world fabric colors.
 
 COLOR_NAMES = {
     # Neutrals
@@ -186,6 +261,10 @@ COLOR_NAMES = {
     "white":        (255, 255, 255),
     "ivory":        (255, 255, 240),
     "cream":        (255, 253, 208),
+    "taupe":        (179, 139, 109),
+    "greige":       (175, 165, 155),
+    "alabaster":    (242, 240, 230),
+    "oat":          (223, 208, 184),
 
     # Browns & Tans
     "brown":        (120, 66, 18),
@@ -198,6 +277,8 @@ COLOR_NAMES = {
     "khaki":        (170, 160, 120),
     "coffee":       (110, 70, 35),
     "rust":         (183, 65, 14),
+    "terracotta":   (226, 114, 91),
+    "mahogany":     (192, 64, 0),
 
     # Reds
     "red":          (210, 30, 30),
@@ -208,6 +289,9 @@ COLOR_NAMES = {
     "wine":         (114, 22, 38),
     "coral":        (255, 127, 80),
     "salmon":       (250, 128, 114),
+    "ruby":         (224, 17, 95),
+    "brick red":    (203, 65, 84),
+    "cherry":       (222, 49, 99),
 
     # Oranges & Yellows
     "orange":       (240, 140, 20),
@@ -231,6 +315,11 @@ COLOR_NAMES = {
     "lime":         (150, 205, 50),
     "emerald":      (0, 155, 85),
     "teal":         (0, 128, 128),
+    "seafoam":      (159, 226, 191),
+    "hunter green": (53, 94, 59),
+    "chartreuse":   (127, 255, 0),
+    "jade":         (0, 168, 107),
+    "pistachio":    (147, 197, 114),
 
     # Blues
     "blue":         (70, 130, 180),
@@ -245,6 +334,10 @@ COLOR_NAMES = {
     "indigo":       (50, 0, 110),
     "cyan":         (0, 200, 220),
     "turquoise":    (64, 200, 200),
+    "sapphire":     (15, 82, 186),
+    "cerulean":     (0, 123, 167),
+    "slate blue":   (106, 90, 205),
+    "midnight blue":(25, 25, 112),
 
     # Purples
     "purple":       (128, 0, 128),
@@ -255,6 +348,7 @@ COLOR_NAMES = {
     "mauve":        (153, 102, 153),
     "violet":       (127, 0, 255),
     "magenta":      (200, 0, 130),
+    "eggplant":     (97, 64, 81),
 
     # Pinks
     "pink":         (255, 182, 193),
@@ -264,4 +358,6 @@ COLOR_NAMES = {
     "rose":         (200, 100, 120),
     "fuchsia":      (215, 0, 120),
     "dusty pink":   (210, 140, 150),
+    "flamingo":     (252, 142, 172),
+    "bubblegum":    (255, 193, 204),
 }

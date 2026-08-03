@@ -34,6 +34,7 @@ from ml.classification.model import (
     STYLE_MAP,
     SEASON_LABELS,
     SEASON_MAP,
+    SEASON_OVERRIDE,
     PATTERN_LABELS,
     PATTERN_MAP,
     COLOR_NAMES,
@@ -90,8 +91,8 @@ def _extract_dominant_color(image_np_rgb: np.ndarray, alpha: np.ndarray, n_clust
       3. For genuinely achromatic items (black/white/gray), fall back to the largest cluster
       4. Map the winning cluster center to the nearest named color
     """
-    # Get only foreground pixels (alpha > 128)
-    fg_mask = alpha > 128
+    # Get only foreground pixels (alpha > 200 to prevent background bleed)
+    fg_mask = alpha > 200
     fg_pixels = image_np_rgb[fg_mask]
 
     if len(fg_pixels) < 10:
@@ -123,9 +124,10 @@ def _extract_dominant_color(image_np_rgb: np.ndarray, alpha: np.ndarray, n_clust
     SATURATION_THRESHOLD = 30
 
     if np.max(saturations) > SATURATION_THRESHOLD:
-        # Weight by saturation AND cluster size so tiny bright noise doesn't win
-        # Score = saturation * sqrt(pixel_count)  — rewards vibrant + large clusters
-        scores = saturations * np.sqrt(counts.astype(np.float32))
+        # Force the algorithm to prioritize large clusters to avoid bright noise pixels winning
+        # Normalize count to a percentage (0 to 1) so it scales with saturation
+        volume_ratio = counts.astype(np.float32) / np.sum(counts)
+        scores = saturations * volume_ratio
         best_idx = int(np.argmax(scores))
     else:
         # Achromatic item (black/white/gray) — just pick the biggest cluster
@@ -136,12 +138,21 @@ def _extract_dominant_color(image_np_rgb: np.ndarray, alpha: np.ndarray, n_clust
 
 
 def _nearest_color_name(rgb: np.ndarray) -> str:
-    """Map an RGB triplet to the nearest named color using Euclidean distance."""
+    """Map an RGB triplet to the nearest named color using CIE Lab perceptual distance."""
+    # Convert input RGB to Lab
+    rgb_uint8 = np.uint8([[[rgb[0], rgb[1], rgb[2]]]])
+    lab_pixel = cv2.cvtColor(rgb_uint8, cv2.COLOR_RGB2LAB)[0][0]
+    
     min_dist = float("inf")
     best_name = "unknown"
 
     for name, ref_rgb in COLOR_NAMES.items():
-        dist = np.sqrt(np.sum((rgb - np.array(ref_rgb, dtype=np.float32)) ** 2))
+        ref_uint8 = np.uint8([[[ref_rgb[0], ref_rgb[1], ref_rgb[2]]]])
+        ref_lab = cv2.cvtColor(ref_uint8, cv2.COLOR_RGB2LAB)[0][0]
+        
+        # Euclidean distance in LAB space (deltaE CIE76)
+        dist = np.sqrt(np.sum((lab_pixel.astype(np.float32) - ref_lab.astype(np.float32)) ** 2))
+        
         if dist < min_dist:
             min_dist = dist
             best_name = name
@@ -177,8 +188,12 @@ def classify_item(image_path: str) -> dict:
     best_style_raw, style_conf, _ = _clip_zero_shot(rgb_image, STYLE_LABELS)
     style = STYLE_MAP.get(best_style_raw, best_style_raw)
 
-    best_season_raw, season_conf, _ = _clip_zero_shot(rgb_image, SEASON_LABELS)
-    season = SEASON_MAP.get(best_season_raw, best_season_raw)
+    if best_type in SEASON_OVERRIDE:
+        season = SEASON_OVERRIDE[best_type]
+        season_conf = 1.0  # Hardware override
+    else:
+        best_season_raw, season_conf, _ = _clip_zero_shot(rgb_image, SEASON_LABELS)
+        season = SEASON_MAP.get(best_season_raw, best_season_raw)
 
     best_pattern_raw, pattern_conf, _ = _clip_zero_shot(rgb_image, PATTERN_LABELS)
     pattern = PATTERN_MAP.get(best_pattern_raw, best_pattern_raw)
