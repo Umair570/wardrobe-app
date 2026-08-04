@@ -44,13 +44,19 @@ class Settings(BaseSettings):
     supabase_bucket_cutouts: str = "wardrobe-cutouts"
     supabase_bucket_body: str = "body-photos"
     supabase_bucket_generated: str = "visualizations"
-    upload_dir: str = "uploads"
+    # Project root is BASE_DIR, so we store uploads securely outside of the Uvicorn watch scope
+    upload_dir: str = str(BASE_DIR / ".uploads")
+    max_upload_size_mb: int = 50
 
     # Backend Settings
     backend_base_url: str = "http://localhost:8000"
 
+    # Virtual Try-On inference architecture
+    ootd_provider: str = "gradio"
+    modal_ootd_endpoint: str = ""
+
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / ".env",
+        env_file=(".env", str(BASE_DIR / ".env")),
         extra="ignore",
     )
 

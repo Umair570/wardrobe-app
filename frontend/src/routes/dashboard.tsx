@@ -13,7 +13,7 @@ export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard — Atelier AI Wardrobe" },
-      { name: "description", content: "Your daily outfit recommendation, wardrobe highlights and a direct line to the AI stylist." },
+      { name: "description", content: "Your daily outfit recommendation, wardrobe highlights and a direct line to the assistant." },
       { property: "og:title", content: "Dashboard — Atelier AI Wardrobe" },
       { property: "og:description", content: "Daily outfit recommendation and wardrobe highlights." },
     ],
@@ -63,7 +63,7 @@ function Dashboard() {
           />
           <button
             type="submit"
-            aria-label="Ask the stylist"
+            aria-label="Ask the assistant"
             className="rounded-full bg-ink p-2.5 text-beige transition-transform hover:scale-105"
           >
             <Send className="h-4 w-4" />

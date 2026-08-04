@@ -24,7 +24,10 @@ def is_image_blurry(image_path: str, threshold: float = 50.0) -> bool:
     return variance < threshold
 
 
-def process_wardrobe_upload(image_path: str, output_directory: str = "ml/outputs") -> dict:
+_ml_dir = Path(__file__).resolve().parent
+_default_out = str(_ml_dir / ".outputs")
+
+def process_wardrobe_upload(image_path: str, output_directory: str = _default_out) -> dict:
     """
     Unified entrypoint for backend API.
     Args:

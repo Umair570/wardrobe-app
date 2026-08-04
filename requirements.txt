@@ -22,3 +22,5 @@ motor>=3.3.0
 pydantic-settings>=2.0.0
 supabase>=2.5.2
 gradio_client>=0.17.0
+qdrant-client>=1.7.0
+modal

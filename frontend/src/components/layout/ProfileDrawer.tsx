@@ -104,7 +104,7 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
                       <img
                         src={profile.body_photo_url}
                         alt="Your body photo"
-                        className="w-full object-cover max-h-64"
+                        className="w-full h-auto object-contain bg-secondary/10"
                       />
                       <div className="absolute inset-0 flex items-end justify-end p-3">
                         <span className="flex items-center gap-1 rounded-full bg-forest/90 px-2.5 py-1 text-[0.6rem] font-bold uppercase tracking-widest text-beige">

@@ -17,24 +17,24 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Photograph your clothes, build outfits on a visual studio canvas, and ask an AI stylist what to wear today.",
+          "Photograph your clothes, build outfits on a visual studio canvas, and ask an assistant what to wear today.",
       },
       { property: "og:title", content: "Atelier — Your Wardrobe, Styled by AI" },
       {
         property: "og:description",
-        content: "A digital closet with an AI stylist and a visual outfit studio.",
+        content: "A digital closet with a personal assistant and a visual outfit studio.",
       },
     ],
   }),
   component: Landing,
 });
 
-const marqueeWords = ["Digital Closet", "Vector Search", "AI Stylist", "Virtual Try-On", "Cutout Engine"];
+const marqueeWords = ["Digital Closet", "Visual Search", "Personal Assistant", "Virtual Try-On", "Background Eraser"];
 
 const steps = [
   { icon: Scan, title: "Shoot it", body: "Snap any garment. We cut the background out and store a clean, floating PNG." },
   { icon: Layers, title: "Stack it", body: "Assemble looks on a canvas where every piece layers like the real thing." },
-  { icon: Sparkles, title: "Ask it", body: "Tell the stylist your plans. It searches your closet and returns a full outfit." },
+  { icon: Sparkles, title: "Ask it", body: "Tell the assistant your plans. It searches your closet and returns a full outfit." },
 ];
 
 function Landing() {
@@ -48,7 +48,7 @@ function Landing() {
               Sign in
             </Button>
           </Link>
-          <Link to="/dashboard">
+          <Link to="/auth" search={{ mode: 'register' }}>
             <Button variant="ink" size="sm">
               Register
             </Button>
@@ -63,7 +63,7 @@ function Landing() {
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         >
           <Eyebrow>
-            <span className="h-1.5 w-1.5 rounded-full bg-forest" /> AI Wardrobe & Stylist
+            <span className="h-1.5 w-1.5 rounded-full bg-forest" /> Digital Wardrobe & Assistant
           </Eyebrow>
           <h1 className="mt-6 text-6xl uppercase sm:text-7xl xl:text-8xl display-xl">
             Your closet,
@@ -74,7 +74,7 @@ function Landing() {
           </h1>
           <p className="mt-7 max-w-md text-base leading-relaxed text-muted-foreground">
             Every garment you own — cut out, catalogued and searchable. Build outfits visually,
-            or let the stylist read your calendar mood and dress you in seconds.
+            or let the assistant read your calendar mood and dress you in seconds.
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
             <Link to="/dashboard">
@@ -92,7 +92,7 @@ function Landing() {
             {[
               ["SAM-2", "Cutout engine"],
               ["CLIP", "Semantic search"],
-              ["Groq", "Stylist brain"],
+              ["Smart", "Assistant brain"],
             ].map(([k, v]) => (
               <div key={k}>
                 <dt className="text-2xl uppercase display-xl">{k}</dt>
@@ -216,7 +216,7 @@ function Landing() {
             in one sentence
           </h2>
           <p className="relative mx-auto mt-6 max-w-sm text-sm leading-relaxed text-beige/70">
-            "Dinner, outdoors, slightly cold." The stylist handles the rest.
+            "Dinner, outdoors, slightly cold." The assistant handles the rest.
           </p>
           <div className="relative mt-9 flex justify-center">
             <Link to="/auth">
@@ -229,7 +229,7 @@ function Landing() {
       </section>
 
       <footer className="border-t border-border px-6 py-10 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] text-muted-foreground">
-        Atelier — AI Wardrobe & Stylist
+        Atelier — Digital Wardrobe
       </footer>
     </div>
   );

@@ -10,11 +10,11 @@ import type { ChatMessage, WardrobeItem } from "@/lib/types";
 export const Route = createFileRoute("/stylist")({
   head: () => ({
     meta: [
-      { title: "AI Stylist — Atelier" },
+      { title: "Personal Assistant — Atelier" },
       {
         name: "description",
         content:
-          "Have a conversation with your personal AI stylist. It retrieves your wardrobe items using vector search and builds the perfect outfit for any occasion.",
+          "Have a conversation with your personal assistant. It retrieves your wardrobe items using smart search and builds the perfect outfit for any occasion.",
       },
     ],
   }),
@@ -47,11 +47,11 @@ function StylistPage() {
 
   const suggestedItems = lastResponse
     ? [
-        byId(lastResponse.outfit.outerwear_id),
-        byId(lastResponse.outfit.top_id),
-        byId(lastResponse.outfit.bottom_id),
-        byId(lastResponse.outfit.shoes_id),
-      ].filter(Boolean) as WardrobeItem[]
+      byId(lastResponse.outfit.outerwear_id),
+      byId(lastResponse.outfit.top_id),
+      byId(lastResponse.outfit.bottom_id),
+      byId(lastResponse.outfit.shoes_id),
+    ].filter(Boolean) as WardrobeItem[]
     : [];
 
   async function send(text: string) {
@@ -80,7 +80,7 @@ function StylistPage() {
     <AppShell>
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <PageHeader subtitle="Powered by vector search" title="AI Stylist" />
+          <PageHeader subtitle="Powered by smart search" title="Personal Assistant" />
           {lastResponse?.retrieval_source && (
             <div className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground">
               <Database className="h-3 w-3" />
@@ -102,9 +102,9 @@ function StylistPage() {
                     <Sparkles className="h-6 w-6 text-forest" />
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground">Your personal AI stylist</p>
+                    <p className="font-semibold text-foreground">Your personal assistant</p>
                     <p className="mt-1.5 max-w-xs text-sm text-muted-foreground">
-                      Ask anything — outfit for a hot day, formal dinner, weekend hike. The stylist
+                      Ask anything — outfit for a hot day, formal dinner, weekend hike. The assistant
                       retrieves your actual wardrobe items using semantic search.
                     </p>
                   </div>
@@ -132,11 +132,10 @@ function StylistPage() {
                     key={m.id}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`max-w-[85%] rounded-3xl px-5 py-3.5 text-sm leading-relaxed ${
-                      m.role === "user"
+                    className={`max-w-[85%] rounded-3xl px-5 py-3.5 text-sm leading-relaxed ${m.role === "user"
                         ? "ml-auto bg-ink text-beige"
                         : "bg-secondary text-foreground"
-                    }`}
+                      }`}
                   >
                     {m.content}
                   </motion.div>
@@ -170,7 +169,7 @@ function StylistPage() {
                 id="stylist-chat-input"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask your stylist… e.g. 'Today is very hot, suggest something light'"
+                placeholder="Ask your assistant… e.g. 'Today is very hot, suggest something light'"
                 className="w-full rounded-full border border-border bg-background px-5 py-3 text-sm outline-none transition-colors focus:border-forest"
               />
               <button
@@ -195,7 +194,7 @@ function StylistPage() {
               <div className="glass flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-[2rem] p-8 text-center">
                 <Sparkles className="h-8 w-8 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground">
-                  The stylist's picks will appear here after you chat.
+                  The assistant's picks will appear here after you chat.
                 </p>
               </div>
             ) : (

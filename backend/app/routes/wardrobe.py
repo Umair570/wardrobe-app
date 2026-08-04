@@ -42,8 +42,8 @@ def _doc_to_out(doc) -> WardrobeItemOut:
 async def list_items(current_user: UserContext = Depends(get_current_user)):
     items = []
     skipped = 0
-    # Match authenticated user's items or legacy items without user_id in dev mode
-    query = {"$or": [{"user_id": current_user.id}, {"user_id": "default_user"}, {"user_id": {"$exists": False}}]}
+    # Match exclusively the authenticated user's items
+    query = {"user_id": current_user.id}
     async for doc in wardrobe_collection.find(query):
         try:
             items.append(_doc_to_out(doc))
@@ -64,7 +64,7 @@ async def get_item(item_id: str, current_user: UserContext = Depends(get_current
 
     query = {
         "_id": object_id,
-        "$or": [{"user_id": current_user.id}, {"user_id": "default_user"}, {"user_id": {"$exists": False}}],
+        "user_id": current_user.id,
     }
     doc = await wardrobe_collection.find_one(query)
     if not doc:
@@ -82,7 +82,7 @@ async def delete_item(item_id: str, current_user: UserContext = Depends(get_curr
 
     query = {
         "_id": object_id,
-        "$or": [{"user_id": current_user.id}, {"user_id": "default_user"}, {"user_id": {"$exists": False}}],
+        "user_id": current_user.id,
     }
     result = await wardrobe_collection.delete_one(query)
     if result.deleted_count == 0:

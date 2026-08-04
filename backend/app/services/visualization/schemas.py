@@ -6,6 +6,7 @@ class VirtualTryOnRequest(BaseModel):
     top_garment_url: Optional[str] = Field(None, description="Absolute URL to the top garment (shirt/sweater)")
     bottom_garment_url: Optional[str] = Field(None, description="Absolute URL to the bottom garment (pants/shorts)")
     dress_garment_url: Optional[str] = Field(None, description="Absolute URL to a dress garment")
+    hf_token: Optional[str] = Field(None, description="HuggingFace API token for rate limits")
     
     # Validation to ensure at least one garment is provided
     def check_has_garment(self):

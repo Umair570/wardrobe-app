@@ -32,11 +32,17 @@ LAYOUT_CATEGORY_MAP: dict[str, str | None] = {
     "shirt": "top",
     "sweater": "top",
     "suit": "top",
+    "underwear": "top",
+    "swimwear": "top",
     # Bottoms
     "pants": "bottom",
     "shorts": "bottom",
     "skirt": "bottom",
-    "dress": "bottom",
+    "sleepwear": "bottom", # Mostly pajama bottoms
+    # Full body
+    "dress": "dress",
+    "traditional": "dress",
+    "one-piece": "dress",
     # Footwear
     "shoes": "shoes",
     # Outerwear (can layer over a top)
@@ -53,6 +59,7 @@ LAYOUT_CATEGORY_MAP: dict[str, str | None] = {
 LAYOUT_POSITIONS: dict[str, dict[str, float]] = {
     "top":       {"x": 50, "y": 30, "width": 72, "height": 28},
     "bottom":    {"x": 50, "y": 58, "width": 56, "height": 36},
+    "dress":     {"x": 50, "y": 50, "width": 70, "height": 55},
     "shoes":     {"x": 50, "y": 88, "width": 38, "height": 10},
     "outerwear": {"x": 50, "y": 31, "width": 78, "height": 30},
 }
@@ -62,6 +69,7 @@ LAYOUT_POSITIONS: dict[str, dict[str, float]] = {
 Z_INDEX: dict[str, int] = {
     "outerwear": 4,
     "top":       3,
+    "dress":     3,
     "bottom":    2,
     "shoes":     1,
 }
@@ -138,18 +146,14 @@ class VisualizationService:
         """image_generation_service fetches garment images itself over HTTP, so
         it needs a real, absolute URL -- not the relative '/ml/outputs/...'
         paths items carry. Same for the ai_image_url we hand back to the
-        frontend. Set BACKEND_BASE_URL in the environment if this isn't
-        running on localhost:8000.
-
-        NOTE: supabase-py v2 can return PublicUrlResponse objects from
-        get_public_url() rather than plain strings. Always coerce to str
-        first so startswith() works correctly.
+        frontend if we save inferences locally vs supabase.
         """
         if not url:
             return url or ""
         # Coerce to plain str — handles supabase-py PublicUrlResponse objects
         url_str = str(url).strip()
-        if url_str.startswith("http://") or url_str.startswith("https://"):
+        # Ensure we do not prepend the domain wrapper to pure binary memory payloads
+        if url_str.startswith("http://") or url_str.startswith("https://") or url_str.startswith("data:"):
             return url_str
         base = os.getenv("BACKEND_BASE_URL", "http://localhost:8000").rstrip("/")
         return f"{base}{url_str if url_str.startswith('/') else '/' + url_str}"
@@ -239,14 +243,16 @@ class VisualizationService:
         """Map each doc to a layout slot, enforcing max 1 per slot."""
         slot_map: dict[str, dict] = {}
         for doc in docs:
-            category = str(doc.get("category", "")).lower()
+            garment = doc.get("garment") or {}
+            category_raw = doc.get("category") or garment.get("category") or ""
+            category = str(category_raw).lower()
             slot = LAYOUT_CATEGORY_MAP.get(category)
 
             if slot is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(
-                        f"Category '{category}' (item {doc['_id']}) cannot be "
+                        f"Category '{category_raw}' (item {doc['_id']}) cannot be "
                         "visualized in the 2D overlay."
                     ),
                 )
@@ -263,15 +269,19 @@ class VisualizationService:
 
     def _build_item_payload(self, slot: str, doc: dict) -> dict[str, Any]:
         """Convert a MongoDB doc + slot into the frontend overlay payload."""
-        image_url = doc.get("image_url")
+        source = doc.get("source") or {}
+        image_url = doc.get("image_url") or source.get("image_url")
+        
         if image_url:
             # Always coerce to plain str — stored value might be a
             # supabase-py PublicUrlResponse object if saved before this fix.
             image_url = str(image_url).strip()
+            
         if not image_url:
-            seg_path: str = doc.get("segmentation_path", doc.get("source_image", ""))
+            segmentation = doc.get("segmentation") or {}
+            seg_path: str = doc.get("segmentation_path") or segmentation.get("cutout_url") or doc.get("source_image", "")
             # Normalise filesystem path → browser-accessible URL.
-            normalised = seg_path.replace("\\", "/")
+            normalised = str(seg_path).replace("\\", "/")
             for marker in ("uploads/", "ml/outputs/", "ml/"):
                 idx = normalised.lower().find(marker)
                 if idx != -1:
@@ -280,11 +290,15 @@ class VisualizationService:
             else:
                 image_url = normalised if normalised.startswith("/") else "/" + normalised
 
+        garment = doc.get("garment") or {}
+        type_raw = doc.get("type") or garment.get("type") or "unknown"
+        color_raw = doc.get("color") or garment.get("color") or ""
+        
         return {
             "id": str(doc["_id"]),
             "category": slot,
-            "type": str(doc.get("type", "unknown")),
-            "color": str(doc.get("color", "")),
+            "type": str(type_raw),
+            "color": str(color_raw),
             "image_url": image_url,
             "position": LAYOUT_POSITIONS[slot],
             "z_index": Z_INDEX[slot],

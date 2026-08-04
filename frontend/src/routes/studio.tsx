@@ -16,7 +16,7 @@ export const Route = createFileRoute("/studio")({
   head: () => ({
     meta: [
       { title: "Outfit Studio — Atelier" },
-      { name: "description", content: "Stack your garments on a visual canvas, swap pieces per slot and let the AI stylist build the look." },
+      { name: "description", content: "Stack your garments on a visual canvas, swap pieces per slot and let the assistant build the look." },
       { property: "og:title", content: "Outfit Studio — Atelier" },
       { property: "og:description", content: "A visual workspace for assembling outfits with AI." },
     ],
@@ -71,7 +71,7 @@ function Studio() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <PageHeader subtitle="Outfit studio" title="Build the look" />
           <Button variant="outline" size="sm" onClick={() => setChatOpen(true)}>
-            <MessageSquare className="h-3.5 w-3.5" /> Stylist
+            <MessageSquare className="h-3.5 w-3.5" /> Assistant
           </Button>
         </div>
 
@@ -101,7 +101,7 @@ function Studio() {
               </AnimatePresence>
               {!Object.values(outfit).some(Boolean) && (
                 <p className="max-w-[16rem] text-center text-sm text-muted-foreground">
-                  Pick pieces from the slots, or ask the stylist to compose a look for you.
+                  Pick pieces from the slots, or ask the assistant to compose a look for you.
                 </p>
               )}
             </div>
@@ -209,12 +209,12 @@ function Studio() {
             >
               <div className="flex items-center justify-between border-b border-border px-6 py-5">
                 <div>
-                  <Eyebrow>AI Stylist</Eyebrow>
+                  <Eyebrow>Personal Assistant</Eyebrow>
                   <h2 className="mt-2 text-2xl uppercase display-xl">Talk it through</h2>
                 </div>
                 <button
                   onClick={() => setChatOpen(false)}
-                  aria-label="Close stylist"
+                  aria-label="Close assistant"
                   className="rounded-full p-2 text-muted-foreground hover:bg-secondary"
                 >
                   <X className="h-4 w-4" />
@@ -225,7 +225,7 @@ function Studio() {
                 {messages.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     Try: "I need an outfit for a summer party" — the studio canvas fills in with the
-                    stylist's picks.
+                    assistant's picks.
                   </p>
                 )}
                 {messages.map((m) => (
@@ -233,11 +233,10 @@ function Studio() {
                     key={m.id}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`max-w-[85%] rounded-3xl px-5 py-3.5 text-sm leading-relaxed ${
-                      m.role === "user"
+                    className={`max-w-[85%] rounded-3xl px-5 py-3.5 text-sm leading-relaxed ${m.role === "user"
                         ? "ml-auto bg-ink text-beige"
                         : "bg-secondary text-foreground"
-                    }`}
+                      }`}
                   >
                     {m.content}
                   </motion.div>
@@ -265,7 +264,7 @@ function Studio() {
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask your stylist…"
+                  placeholder="Ask your assistant…"
                   className="w-full rounded-full border border-border bg-background px-5 py-3 text-sm outline-none transition-colors focus:border-forest"
                 />
                 <button

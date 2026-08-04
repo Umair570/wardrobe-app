@@ -273,6 +273,18 @@ async def process_ingestion(
             inserted_ids.append(str(result.inserted_id))
             logger.info("[ingest][%s] Item %s saved to MongoDB", job_id, item_id)
 
+            # --- Clean up local cutouts and masks ---
+            import os
+            for path_key in ["cutout_path", "mask_path"]:
+                p = seg.get(path_key)
+                if p and os.path.isfile(p):
+                    try:
+                        os.remove(p)
+                        logger.info("[ingest][%s] Cleaned up local file %s", job_id, p)
+                    except OSError:
+                        pass
+
+
         # ----------------------------------------------------------------
         # Step 8: Mark job done
         # ----------------------------------------------------------------

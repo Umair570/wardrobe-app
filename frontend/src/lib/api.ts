@@ -1,4 +1,3 @@
-import { demoWardrobe } from "@/data/wardrobe";
 import type { ChatResponse, WardrobeItem } from "@/lib/types";
 import { supabase } from "./supabase";
 
@@ -16,18 +15,18 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!BASE) throw new Error("offline");
-  
+
   const authHeaders = await getAuthHeaders();
-  
+
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { 
-      "Content-Type": "application/json", 
+    headers: {
+      "Content-Type": "application/json",
       ...authHeaders,
-      ...(init?.headers ?? {}) 
+      ...(init?.headers ?? {})
     },
   });
-  
+
   if (!res.ok) {
     const errText = await res.text();
     throw new Error(`Request failed: ${res.status} - ${errText}`);
@@ -46,8 +45,8 @@ export async function fetchWardrobe(): Promise<WardrobeItem[]> {
       cutout_url: item.segmentation_path || item.image_url,
     }));
   } catch (err) {
-    console.error("Failed to fetch wardrobe, falling back to demo:", err);
-    return demoWardrobe;
+    console.error("Failed to fetch wardrobe:", err);
+    return [];
   }
 }
 
@@ -57,27 +56,27 @@ export async function ingestGarment(file: File): Promise<{ ok: boolean }> {
     await new Promise((r) => setTimeout(r, 1400));
     return { ok: true };
   }
-  
+
   const authHeaders = await getAuthHeaders();
   const body = new FormData();
   body.append("file", file);
-  
-  const res = await fetch(`${BASE}/api/v1/ingest/`, { 
-    method: "POST", 
+
+  const res = await fetch(`${BASE}/api/v1/ingest/`, {
+    method: "POST",
     body,
     headers: {
       ...authHeaders
     }
   });
-  
+
   if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-  
+
   const data = await res.json();
   const jobId = data.job_id;
 
   if (jobId) {
-    // Poll job status until done or failed (up to 45 seconds)
-    for (let i = 0; i < 45; i++) {
+    // Poll job status until done or failed (up to 180 seconds to allow ML models to download/run on CPU)
+    for (let i = 0; i < 180; i++) {
       await new Promise((r) => setTimeout(r, 1000));
       try {
         const pollRes = await fetch(`${BASE}/api/v1/ingest/${jobId}`, {
@@ -93,7 +92,7 @@ export async function ingestGarment(file: File): Promise<{ ok: boolean }> {
           }
         }
       } catch (err) {
-        if (i === 44) throw err;
+        if (i === 179) throw err;
       }
     }
   }
@@ -162,4 +161,12 @@ export async function uploadBodyPhoto(file: File): Promise<UserProfile> {
 /** DELETE /api/v1/profile/body-photo — remove user body photo */
 export async function deleteBodyPhoto(): Promise<void> {
   await request("/api/v1/profile/body-photo", { method: "DELETE" });
+}
+
+/** POST /api/v1/visualization — Virtual Try-On generation */
+export async function generateTryOn(itemIds: string[], userBodyPhotoUrl: string, mode = "ai"): Promise<{ ai_image_url: string }> {
+  return await request<{ ai_image_url: string }>("/api/v1/visualization", {
+    method: "POST",
+    body: JSON.stringify({ item_ids: itemIds, user_body_photo_url: userBodyPhotoUrl, mode }),
+  });
 }

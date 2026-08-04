@@ -20,7 +20,8 @@ from pprint import pprint
 from ml.segmentation.model import CLIP_PROCESSOR, CLIP_MODEL, SAM2_MODEL
 from ml.segmentation.utils import load_image, create_output_directory
 
-OUTPUT_DIRECTORY = "ml/outputs"
+_ml_dir = Path(__file__).resolve().parent.parent
+OUTPUT_DIRECTORY = str(_ml_dir / ".outputs")
 
 # ── TUNING CONSTANTS ──────────────────────────────────────────────────────────
 MAX_DIM             = 640    # Max working resolution (speed vs quality)

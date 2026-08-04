@@ -15,7 +15,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 print("Loading SAM2-Tiny for pixel-perfect mask extraction...")
-default_sam2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sam2_t.pt")
+repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+default_sam2 = os.path.join(repo_root, "sam2_t.pt")
 sam2_path = os.getenv("SAM2_MODEL_PATH", default_sam2)
 SAM2_MODEL = SAM(sam2_path)
 print("SAM2 loaded.\n")
