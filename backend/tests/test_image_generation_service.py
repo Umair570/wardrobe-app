@@ -2,8 +2,8 @@ import unittest
 
 from backend.app.services.image_generation_service import (
     GeminiImageGeneration,
+    IDMVTONImageGeneration,
     ImageGenerationFactory,
-    QwenImageGeneration,
     generate_image,
 )
 
@@ -14,9 +14,9 @@ class ImageGenerationFactoryTests(unittest.TestCase):
             ImageGenerationFactory.get_img_gen_model("GeMiNi"), GeminiImageGeneration
         )
 
-    def test_selects_qwen_case_insensitively(self) -> None:
+    def test_selects_idm_vton_case_insensitively(self) -> None:
         self.assertIsInstance(
-            ImageGenerationFactory.get_img_gen_model("qwen"), QwenImageGeneration
+            ImageGenerationFactory.get_img_gen_model("idm-vton"), IDMVTONImageGeneration
         )
 
     def test_rejects_unknown_model(self) -> None:

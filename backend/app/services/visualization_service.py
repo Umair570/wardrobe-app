@@ -1,4 +1,4 @@
-"""Visualization service for the wardrobe 2D overlay MVP (WMVP-20).
+"""Visualization service for the wardrobe 2D overlay & IDM-VTON try-on (WMVP-20).
 
 Responsibilities:
   1. Fetch selected wardrobe items from MongoDB by ID.
@@ -68,7 +68,7 @@ Z_INDEX: dict[str, int] = {
 
 
 class VisualizationService:
-    """Builds 2D overlay or Gemini AI image try-on response from selected item IDs."""
+    """Builds 2D overlay or IDM-VTON image try-on response from selected item IDs."""
 
     async def build_response(
         self,
@@ -82,7 +82,7 @@ class VisualizationService:
         try-on needs (a) the user's body photo and (b) the actual garment cutout
         images (segmentation_path on each doc) — not just a text description built
         from color/type. Wire this through to image_generation_service.generate_image
-        once that function accepts image inputs; see the TODO below.
+        once that function accepts image inputs. Uses IDM-VTON via HuggingFace Spaces.
         """
         docs = await self._get_selected_items(item_ids)
         slot_map = self._assign_slots(docs)
@@ -95,42 +95,35 @@ class VisualizationService:
                     detail="AI try-on mode requires a user body photo.",
                 )
 
-            try:
-                from app.services.image_generation_service import generate_image  # type: ignore[import]
-            except ImportError:
-                from backend.app.services.image_generation_service import generate_image  # type: ignore[import]
+            from app.services.visualization import get_vton_model
+            from app.services.visualization.schemas import VirtualTryOnRequest
 
-            person_image_b64 = await self._to_base64(user_body_photo_url)
-            garment_image_urls = [
-                self._to_absolute_url(item["image_url"]) for item in items_payload
-            ]
-            descriptions = [
-                f"{doc.get('color', '')} {doc.get('type', doc.get('category', 'clothing'))}".strip()
-                for doc in docs
-            ]
-            prompt = ", ".join(descriptions)
+            person_image_url = user_body_photo_url
+            
+            # Extract garment URLs by category slot
+            top_garment_url = next((self._to_absolute_url(item["image_url"]) for item in items_payload if item["category"] in ["top", "outerwear"]), None)
+            bottom_garment_url = next((self._to_absolute_url(item["image_url"]) for item in items_payload if item["category"] == "bottom"), None)
+            dress_garment_url = next((self._to_absolute_url(item["image_url"]) for item in items_payload if item["category"] == "dress"), None)
 
-            try:
-                from starlette.concurrency import run_in_threadpool
-                ai_image_url = await run_in_threadpool(
-                    generate_image,
-                    prompt,
-                    "idm-vton",
-                    person_image_b64=person_image_b64,
-                    garment_image_urls=garment_image_urls,
-                )
-            except Exception as err:
-                # Do NOT silently fall back to overlay mode here — that hides real
-                # failures (bad API key, timeout, quota) behind a response that looks
-                # like a normal, successful overlay. Surface the error instead.
+            vton_req = VirtualTryOnRequest(
+                person_image_url=person_image_url,
+                top_garment_url=top_garment_url,
+                bottom_garment_url=bottom_garment_url,
+                dress_garment_url=dress_garment_url
+            )
+            
+            vton_model = get_vton_model()
+            vton_res = await vton_model.generate(vton_req)
+            
+            if not vton_res.success:
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"AI image generation failed: {err}",
+                    detail=f"AI image generation failed: {vton_res.error_message}",
                 )
 
             return {
                 "mode": "ai",
-                "ai_image_url": self._to_absolute_url(ai_image_url),
+                "ai_image_url": self._to_absolute_url(vton_res.ai_image_url),
                 "items": items_payload,
             }
 
@@ -141,18 +134,25 @@ class VisualizationService:
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
-    def _to_absolute_url(self, url: str) -> str:
+    def _to_absolute_url(self, url) -> str:
         """image_generation_service fetches garment images itself over HTTP, so
         it needs a real, absolute URL -- not the relative '/ml/outputs/...'
         paths items carry. Same for the ai_image_url we hand back to the
         frontend. Set BACKEND_BASE_URL in the environment if this isn't
-        running on localhost:8000."""
+        running on localhost:8000.
+
+        NOTE: supabase-py v2 can return PublicUrlResponse objects from
+        get_public_url() rather than plain strings. Always coerce to str
+        first so startswith() works correctly.
+        """
         if not url:
-            return url
-        if url.startswith("http://") or url.startswith("https://"):
-            return url
+            return url or ""
+        # Coerce to plain str — handles supabase-py PublicUrlResponse objects
+        url_str = str(url).strip()
+        if url_str.startswith("http://") or url_str.startswith("https://"):
+            return url_str
         base = os.getenv("BACKEND_BASE_URL", "http://localhost:8000").rstrip("/")
-        return f"{base}{url if url.startswith('/') else '/' + url}"
+        return f"{base}{url_str if url_str.startswith('/') else '/' + url_str}"
 
     async def _to_base64(self, photo_ref: str) -> str:
         """Convert whatever the frontend sent for the body photo into raw
@@ -263,25 +263,28 @@ class VisualizationService:
 
     def _build_item_payload(self, slot: str, doc: dict) -> dict[str, Any]:
         """Convert a MongoDB doc + slot into the frontend overlay payload."""
-        seg_path: str = doc.get("segmentation_path", "")
-        # Normalise filesystem path → browser-accessible URL.
-        # StaticFiles may be mounted at /uploads OR the ML pipeline writes to
-        # ml/outputs/. Either way, strip leading drive/directory up to the
-        # known sub-path roots and prepend a single '/'.
-        normalised = seg_path.replace("\\", "/")
-        for marker in ("uploads/", "ml/outputs/", "ml/"):
-            idx = normalised.lower().find(marker)
-            if idx != -1:
-                image_url = "/" + normalised[idx:]
-                break
-        else:
-            # Fallback: ensure at least a leading slash
-            image_url = normalised if normalised.startswith("/") else "/" + normalised
+        image_url = doc.get("image_url")
+        if image_url:
+            # Always coerce to plain str — stored value might be a
+            # supabase-py PublicUrlResponse object if saved before this fix.
+            image_url = str(image_url).strip()
+        if not image_url:
+            seg_path: str = doc.get("segmentation_path", doc.get("source_image", ""))
+            # Normalise filesystem path → browser-accessible URL.
+            normalised = seg_path.replace("\\", "/")
+            for marker in ("uploads/", "ml/outputs/", "ml/"):
+                idx = normalised.lower().find(marker)
+                if idx != -1:
+                    image_url = "/" + normalised[idx:]
+                    break
+            else:
+                image_url = normalised if normalised.startswith("/") else "/" + normalised
 
         return {
             "id": str(doc["_id"]),
             "category": slot,
             "type": str(doc.get("type", "unknown")),
+            "color": str(doc.get("color", "")),
             "image_url": image_url,
             "position": LAYOUT_POSITIONS[slot],
             "z_index": Z_INDEX[slot],

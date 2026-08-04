@@ -1,48 +1,26 @@
-# AI Wardrobe — Frontend
+# Verdant Luxe
 
-Started from the 8-screen wireframe-matched build, then restyled with a
-modern indigo/slate/amber/coral palette and extended with many features eg authentication, a left sidebar navigation drawer, a "Most Viewed / Most Worn"
-stats carousel on Home, and a floating chatbot dock.
+The UI should have lightweight animations on the landing page
 
-## Run it
+the main fonts should be strong and bold , overall there should be a rich , premium look, you can try combination of green with beige or any other unique color that fits the theme, ocassionally use Black color as well
 
-```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run build    # production build into dist/
+This project was built with [Lovable](https://lovable.dev).
+
+## Build with Lovable
+
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/473240aa-73ff-4bb8-bf98-73f2d42cb1c9).
+
+- **Ship faster**: describe what you want to build and Lovable handles the code.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+
+## Development
+
+Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+
+```sh
+git clone <this-repository-url>
+cd <repository-name>
+npm i
+npm run dev
 ```
-
-### Feature 1 — Authentication
-- `src/api/authApi.js` — mock signup/login/session, **plaintext,
-  localStorage-only, explicitly not production-safe** (flagged in the file).
-- `src/context/AuthContext.jsx` — `useAuth()` hook.
-- `src/pages/AuthPage.jsx` — Login/Sign Up tab toggle, Remember Me,
-  Terms & Conditions checkbox gating signup.
-- `src/App.jsx` gates the whole app behind this — no session, no wardrobe.
-
-### Feature 2 — Sidebar navigation
-- `src/components/SidebarNav.jsx` — slide-in drawer (Home, Upload Item,
-  View Wardrobe, AI Stylist, Recommended Outfits, Log Out), triggered by a
-  menu icon in `src/components/Nav.jsx` 
-- `src/components/BottomNav.jsx` — mobile-only fixed bottom bar (Home,
-  Wardrobe, floating "+" add button, Menu) per the mobile responsiveness
-  requirement; desktop uses the sidebar only.
-
-### Feature 3 — Stats carousel
-- `src/data/mockData.js` — every item now has `viewCount` / `wearCount`.
-- `src/components/StatsCarousel.jsx` — auto-advancing banner on Home
-  (Most Viewed / Most Worn / Recently Added), manual prev/next + dot
-  indicators, pauses on hover/focus, **respects `prefers-reduced-motion`**.
-
-### Feature 4 — Chatbot dock
-- `src/components/ChatbotDock.jsx` — floating button, bottom-right (raised
-  above the mobile bottom nav on small screens), opens a chat panel.
-
-### Toast notifications
-- `src/components/ToastProvider.jsx` — `useToast()` hook, wired into item
-  upload ("Item added successfully"), item removal, and outfit save.
-
-## Mobile responsiveness
-- Sidebar + bottom nav cover navigation on small screens.
-- Chatbot button repositions above the bottom nav on mobile so nothing
-  overlaps.

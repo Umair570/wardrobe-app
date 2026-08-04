@@ -4,14 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from app.routes import upload, wardrobe, chatbot, visualization
-from app.database.mongodb import settings
+from app.core.config import settings
+from app.routes import upload, wardrobe, chatbot, visualization, ingest, benchmark, profile
+from app.database.mongodb import init_db_indexes
 
-app = FastAPI(title="Wardrobe App API")
+app = FastAPI(title="AI Wardrobe & Stylist Platform API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -19,46 +21,51 @@ app.add_middleware(
 os.makedirs(settings.upload_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
-# Mount static directory for AI generated outputs
 os.makedirs("static/generated", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Two possible locations for ML cutouts depending on which working directory
-# the segmentation pipeline was run from. Rather than copying files between
-# them once at startup (which misses anything written after boot -- that was
-# the cause of broken thumbnails for recently-uploaded items), we check both
-# live on every request. Whichever one actually has the file wins.
-B_ML_OUT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ml", "outputs"))
+# ML Output static directory handler
 R_ML_OUT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "ml", "outputs"))
-os.makedirs(B_ML_OUT, exist_ok=True)
 os.makedirs(R_ML_OUT, exist_ok=True)
 
 
 @app.get("/ml/outputs/{filename:path}")
 async def get_ml_output(filename: str):
-    for directory in (B_ML_OUT, R_ML_OUT):
-        candidate = os.path.abspath(os.path.join(directory, filename))
-        # Guard against path traversal escaping the intended directory.
-        if not candidate.startswith(directory):
-            continue
-        if os.path.isfile(candidate):
-            return FileResponse(candidate)
+    candidate = os.path.abspath(os.path.join(R_ML_OUT, filename))
+    if not candidate.startswith(R_ML_OUT):
+        raise HTTPException(status_code=400, detail="Invalid file path.")
+    if os.path.isfile(candidate):
+        return FileResponse(candidate)
     raise HTTPException(status_code=404, detail=f"No ML output found for '{filename}'.")
 
 
-app.include_router(upload.router)
-app.include_router(wardrobe.router)
-app.include_router(chatbot.router)
-app.include_router(visualization.router)
+# Register API Routers (supporting both root and /api/v1 prefix)
+for prefix in ["", "/api/v1"]:
+    app.include_router(upload.router, prefix=prefix)
+    app.include_router(wardrobe.router, prefix=prefix)
+    app.include_router(chatbot.router, prefix=prefix)
+    app.include_router(visualization.router, prefix=prefix)
+    app.include_router(ingest.router, prefix=prefix)
+    app.include_router(benchmark.router, prefix=prefix)
+    app.include_router(profile.router, prefix=prefix)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    from app.services.vector.qdrant_service import qdrant_service
+    return {
+        "status":  "ok",
+        "service": "AI Wardrobe & Stylist Platform API",
+        "version": "1.0.0",
+        "qdrant":  qdrant_service.collection_info(),
+    }
 
 
 @app.on_event("startup")
-async def load_ml_models():
-    print("Loading ML models (segmentation + classification)...")
+async def startup_event():
+    print("[main] Starting AI Wardrobe Platform API...")
+    # Phase 3: Initialise MongoDB indexes (idempotent)
+    await init_db_indexes()
+    print("[main] MongoDB indexes ready.")
     import app.ml_loader
-    print("ML models loaded successfully.")
+    print("[main] ML Loader pre-warmed successfully.")
