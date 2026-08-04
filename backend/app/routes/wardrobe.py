@@ -55,17 +55,17 @@ async def list_items(current_user: UserContext = Depends(get_current_user)):
     return items
 
 
+def _parse_item_id(item_id: str):
+    """Returns a query dict that matches either a string _id or ObjectId _id."""
+    try:
+        return {"$or": [{"_id": item_id}, {"_id": ObjectId(item_id)}]}
+    except (InvalidId, Exception):
+        return {"_id": item_id}
+
+
 @router.get("/{item_id}", response_model=WardrobeItemOut)
 async def get_item(item_id: str, current_user: UserContext = Depends(get_current_user)):
-    try:
-        object_id = ObjectId(item_id)
-    except InvalidId:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    query = {
-        "_id": object_id,
-        "user_id": current_user.id,
-    }
+    query = {**_parse_item_id(item_id), "user_id": current_user.id}
     doc = await wardrobe_collection.find_one(query)
     if not doc:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -75,15 +75,7 @@ async def get_item(item_id: str, current_user: UserContext = Depends(get_current
 
 @router.delete("/{item_id}")
 async def delete_item(item_id: str, current_user: UserContext = Depends(get_current_user)):
-    try:
-        object_id = ObjectId(item_id)
-    except InvalidId:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    query = {
-        "_id": object_id,
-        "user_id": current_user.id,
-    }
+    query = {**_parse_item_id(item_id), "user_id": current_user.id}
     result = await wardrobe_collection.delete_one(query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Item not found")

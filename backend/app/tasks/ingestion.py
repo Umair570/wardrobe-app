@@ -268,10 +268,10 @@ async def process_ingestion(
             )
 
             result = await wardrobe_collection.insert_one(
-                doc.model_dump(exclude_none=True)
+                {"_id": item_id, **doc.model_dump(exclude_none=True)}
             )
-            inserted_ids.append(str(result.inserted_id))
-            logger.info("[ingest][%s] Item %s saved to MongoDB", job_id, item_id)
+            inserted_ids.append(item_id)
+            logger.info("[ingest][%s] Item %s saved to MongoDB (id=%s)", job_id, item_id, item_id)
 
             # --- Clean up local cutouts and masks ---
             import os

@@ -1,4 +1,4 @@
-import type { ChatResponse, WardrobeItem } from "@/lib/types";
+import type { WardrobeItem } from "@/lib/types";
 import { supabase } from "./supabase";
 
 const BASE = import.meta.env['VITE_API_BASE_URL'] as string | undefined;
@@ -100,28 +100,70 @@ export async function ingestGarment(file: File): Promise<{ ok: boolean }> {
   return { ok: true };
 }
 
+export interface ChatResponse {
+  reply: string;
+  outfit: {
+    top_id: string | null;
+    bottom_id: string | null;
+    outerwear_id: string | null;
+    shoes_id: string | null;
+  };
+  session_id?: string;
+}
+
+export interface ChatSession {
+  session_id: string;
+  title: string;
+  updated_at: string;
+}
+
+export interface ChatHistoryResponse {
+  session_id: string;
+  messages: Array<{
+    id: string;
+    role: string;
+    content: string;
+    outfit?: any;
+  }>;
+}
+
 /** POST /api/v1/chat — AI stylist reply plus a suggested outfit. */
-export async function askStylist(prompt: string, items: WardrobeItem[]): Promise<ChatResponse> {
+export async function askStylist(
+  prompt: string,
+  items: WardrobeItem[],
+  session_id?: string
+): Promise<ChatResponse> {
   try {
     return await request<ChatResponse>("/api/v1/chat", {
       method: "POST",
-      body: JSON.stringify({ message: prompt }),
+      body: JSON.stringify({ message: prompt, session_id }),
     });
   } catch (err) {
-    console.error("Stylist API failed, falling back to mock:", err);
-    await new Promise((r) => setTimeout(r, 1100));
-    const pick = (c: string) => items.find((i) => i.category === c)?.id ?? null;
-    return {
-      reply: `Here's a look for "${prompt}": the cream knit softens the black tailoring, with the forest overcoat as the statement layer.`,
-      outfit: {
-        top_id: pick("top"),
-        bottom_id: pick("bottom"),
-        outerwear_id: pick("outerwear"),
-        shoes_id: pick("shoes"),
-      },
-    };
+    console.error("Stylist API failed:", err);
+    throw err;
   }
 }
+
+/** GET /api/v1/chat/sessions — fetch all user chat sessions */
+export async function fetchSessions(): Promise<ChatSession[]> {
+  try {
+    return await request<ChatSession[]>("/api/v1/chat/sessions");
+  } catch (err) {
+    console.error("fetchSessions failed:", err);
+    return [];
+  }
+}
+
+/** GET /api/v1/chat/sessions/{id} — fetch chat history */
+export async function fetchSessionHistory(session_id: string): Promise<ChatHistoryResponse | null> {
+  try {
+    return await request<ChatHistoryResponse>(`/api/v1/chat/sessions/${session_id}`);
+  } catch (err) {
+    console.error("fetchSessionHistory failed:", err);
+    return null;
+  }
+}
+
 
 export interface UserProfile {
   user_id: string;
@@ -144,12 +186,12 @@ export async function fetchProfile(): Promise<UserProfile | null> {
 }
 
 /** POST /api/v1/profile/body-photo — upload user body photo for virtual try-on */
-export async function uploadBodyPhoto(file: File): Promise<UserProfile> {
+export async function uploadBodyPhoto(file: File, saveProfile: boolean = true): Promise<UserProfile> {
   if (!BASE) throw new Error("offline");
   const authHeaders = await getAuthHeaders();
   const body = new FormData();
   body.append("file", file);
-  const res = await fetch(`${BASE}/api/v1/profile/body-photo`, {
+  const res = await fetch(`${BASE}/api/v1/profile/body-photo?save_profile=${saveProfile}`, {
     method: "POST",
     body,
     headers: { ...authHeaders },

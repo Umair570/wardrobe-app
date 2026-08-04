@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # Groq LLM Infrastructure
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "llama-3.1-8b-instant"
 
     # Embedding Model (Phase 6)
     # Controls which model is used by the ingestion pipeline.
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     # LLM Settings & Fallbacks
     llm_provider: str = "groq"
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "llama-3.1-8b-instant"
     openrouter_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None

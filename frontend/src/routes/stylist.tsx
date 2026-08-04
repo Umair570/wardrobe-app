@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
-import { Send, Sparkles, Wand2, Zap, Database } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Send, Sparkles, Wand2, Zap, Database, Clock, MessageSquare } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { useWardrobe } from "@/hooks/useWardrobe";
-import { askStylist } from "@/lib/api";
-import type { ChatMessage, WardrobeItem } from "@/lib/types";
+import { askStylist, fetchSessions, fetchSessionHistory } from "@/lib/api";
+import type { ChatMessage, WardrobeItem, ChatSession } from "@/lib/types";
 
 export const Route = createFileRoute("/stylist")({
   head: () => ({
@@ -35,10 +36,14 @@ interface ExtendedChatResponse {
 
 function StylistPage() {
   const { data: items = [] } = useWardrobe();
+  const { data: sessions = [], refetch: refetchSessions } = useQuery({ queryKey: ["chat_sessions"], queryFn: fetchSessions });
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [lastResponse, setLastResponse] = useState<ExtendedChatResponse | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -63,7 +68,7 @@ function StylistPage() {
     ]);
     setThinking(true);
 
-    const res = await askStylist(text, items) as ExtendedChatResponse;
+    const res = await askStylist(text, items, activeSessionId || undefined) as ExtendedChatResponse;
     setThinking(false);
     setLastResponse(res);
     setMessages((m) => [
@@ -71,9 +76,41 @@ function StylistPage() {
       { id: crypto.randomUUID(), role: "assistant", content: res.reply },
     ]);
 
+    // Refresh sidebar silently after asking to populate latest interaction
+    refetchSessions();
+
     setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
+  }
+
+  async function loadHistory(session: ChatSession) {
+    setActiveSessionId(session.session_id);
+    const history = await fetchSessionHistory(session.session_id);
+    if (!history) return;
+
+    setMessages(history.messages.map(m => ({
+      id: m.id,
+      role: m.role as "user" | "assistant",
+      content: m.content
+    })));
+
+    // Find the last assistant message with an outfit to populate the sidebar preview
+    const lastOutfitMsg = [...history.messages].reverse().find(m => m.role === "assistant" && m.outfit);
+    if (lastOutfitMsg) {
+      setLastResponse({
+        reply: lastOutfitMsg.content,
+        outfit: lastOutfitMsg.outfit
+      });
+    } else {
+      setLastResponse(null);
+    }
+  }
+
+  function startNewChat() {
+    setActiveSessionId(null);
+    setMessages([]);
+    setLastResponse(null);
   }
 
   return (
@@ -91,7 +128,37 @@ function StylistPage() {
           )}
         </div>
 
-        <div className="mt-9 grid gap-6 lg:grid-cols-[1fr_380px]">
+        <div className="mt-9 grid gap-6 lg:grid-cols-[260px_1fr_380px]">
+          {/* ── Chat History Sidebar ── */}
+          <div className="glass flex flex-col rounded-[2rem] shadow-luxe p-5" style={{ minHeight: "600px" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Clock className="h-4 w-4" /> History</h3>
+              <button
+                onClick={startNewChat}
+                className="rounded-full bg-forest/10 px-3 py-1 text-[0.65rem] font-bold text-forest transition-colors hover:bg-forest hover:text-beige"
+              >
+                NEW
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
+              {sessions.length === 0 ? (
+                <div className="mt-8 text-center text-xs text-muted-foreground">No recent conversations</div>
+              ) : (
+                sessions.map(s => (
+                  <button
+                    key={s.session_id}
+                    onClick={() => loadHistory(s)}
+                    className={`w-full text-left p-3 rounded-2xl transition-all ${activeSessionId === s.session_id ? "bg-forest text-beige shadow-md" : "bg-card hover:bg-forest/5 text-foreground"}`}
+                  >
+                    <p className="truncate text-xs font-semibold">{s.title || "Conversation"}</p>
+                    <p className={`text-[0.6rem] mt-1 ${activeSessionId === s.session_id ? "text-beige/70" : "text-muted-foreground"}`}>{new Date(s.updated_at).toLocaleDateString()}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* ── Chat panel ── */}
           <div className="glass flex flex-col rounded-[2rem] shadow-luxe" style={{ minHeight: "600px" }}>
             {/* Messages */}
@@ -133,8 +200,8 @@ function StylistPage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`max-w-[85%] rounded-3xl px-5 py-3.5 text-sm leading-relaxed ${m.role === "user"
-                        ? "ml-auto bg-ink text-beige"
-                        : "bg-secondary text-foreground"
+                      ? "ml-auto bg-ink text-beige"
+                      : "bg-secondary text-foreground"
                       }`}
                   >
                     {m.content}
@@ -235,7 +302,7 @@ function StylistPage() {
                     </div>
                     <button
                       id={`tryon-btn-${item.id}`}
-                      onClick={() => navigate({ to: "/tryon" })}
+                      onClick={() => navigate({ to: "/tryon", search: { items: item.id } })}
                       title="Virtual Try-On"
                       className="shrink-0 rounded-full bg-ink p-2 text-beige transition-transform hover:scale-110"
                     >
@@ -251,7 +318,7 @@ function StylistPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 id="full-tryon-btn"
-                onClick={() => navigate({ to: "/tryon" })}
+                onClick={() => navigate({ to: "/tryon", search: { items: suggestedItems.map(i => i.id).join(",") } })}
                 className="flex w-full items-center justify-center gap-2 rounded-full bg-ink px-6 py-4 text-[0.62rem] font-bold uppercase tracking-[0.2em] text-beige shadow-luxe transition-transform hover:scale-[1.02]"
               >
                 <Zap className="h-4 w-4" /> Generate Full Try-On

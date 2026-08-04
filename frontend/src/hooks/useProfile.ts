@@ -12,7 +12,7 @@ export function useProfile() {
 export function useUploadBodyPhoto() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => uploadBodyPhoto(file),
+    mutationFn: ({ file, saveProfile }: { file: File, saveProfile?: boolean }) => uploadBodyPhoto(file, saveProfile),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
     },

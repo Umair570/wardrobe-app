@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as StudioRouteImport } from './routes/studio'
 import { Route as StylistRouteImport } from './routes/stylist'
 import { Route as TryonRouteImport } from './routes/tryon'
 import { Route as WardrobeRouteImport } from './routes/wardrobe'
@@ -30,11 +29,6 @@ const AuthRoute = AuthRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StudioRoute = StudioRouteImport.update({
-  id: '/studio',
-  path: '/studio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StylistRoute = StylistRouteImport.update({
@@ -57,7 +51,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
-  '/studio': typeof StudioRoute
   '/stylist': typeof StylistRoute
   '/tryon': typeof TryonRoute
   '/wardrobe': typeof WardrobeRoute
@@ -66,7 +59,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
-  '/studio': typeof StudioRoute
   '/stylist': typeof StylistRoute
   '/tryon': typeof TryonRoute
   '/wardrobe': typeof WardrobeRoute
@@ -76,36 +68,20 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
-  '/studio': typeof StudioRoute
   '/stylist': typeof StylistRoute
   '/tryon': typeof TryonRoute
   '/wardrobe': typeof WardrobeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/auth'
-    | '/dashboard'
-    | '/studio'
-    | '/stylist'
-    | '/tryon'
-    | '/wardrobe'
+  fullPaths: '/' | '/auth' | '/dashboard' | '/stylist' | '/tryon' | '/wardrobe'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/auth'
-    | '/dashboard'
-    | '/studio'
-    | '/stylist'
-    | '/tryon'
-    | '/wardrobe'
+  to: '/' | '/auth' | '/dashboard' | '/stylist' | '/tryon' | '/wardrobe'
   id:
     | '__root__'
     | '/'
     | '/auth'
     | '/dashboard'
-    | '/studio'
     | '/stylist'
     | '/tryon'
     | '/wardrobe'
@@ -115,7 +91,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   DashboardRoute: typeof DashboardRoute
-  StudioRoute: typeof StudioRoute
   StylistRoute: typeof StylistRoute
   TryonRoute: typeof TryonRoute
   WardrobeRoute: typeof WardrobeRoute
@@ -142,13 +117,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/studio': {
-      id: '/studio'
-      path: '/studio'
-      fullPath: '/studio'
-      preLoaderRoute: typeof StudioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/stylist': {
@@ -179,7 +147,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   DashboardRoute: DashboardRoute,
-  StudioRoute: StudioRoute,
   StylistRoute: StylistRoute,
   TryonRoute: TryonRoute,
   WardrobeRoute: WardrobeRoute,

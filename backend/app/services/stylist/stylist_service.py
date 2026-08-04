@@ -1,6 +1,5 @@
 import logging
 import httpx
-from typing import Any
 
 from app.core.config import settings
 from app.services.stylist.schemas import WardrobeItem, StylistResponse, OutfitRecommendation
@@ -24,7 +23,7 @@ async def generate_outfit_recommendation(query: str, retrieved_items: list[Wardr
     }
     
     payload = {
-        "model": "llama-3.3-70b-versatile",
+        "model": settings.groq_model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": query}

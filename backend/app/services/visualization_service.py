@@ -215,18 +215,23 @@ class VisualizationService:
         except ImportError:
             from backend.app.database.mongodb import wardrobe_collection  # type: ignore[import]
 
-        object_ids: list[ObjectId] = []
+        search_ids = []
         for raw_id in item_ids:
+            search_ids.append(raw_id)
             try:
-                object_ids.append(ObjectId(raw_id))
+                search_ids.append(ObjectId(raw_id))
             except InvalidId:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"'{raw_id}' is not a valid item ID.",
-                )
+                pass
+                
+            # If Qdrant appended 8 zeros to pad to 32 characters, isolate the true ObjectId
+            if len(raw_id) == 32 and raw_id.endswith("00000000"):
+                try:
+                    search_ids.append(ObjectId(raw_id[:24]))
+                except InvalidId:
+                    pass
 
         docs: list[dict] = []
-        async for doc in wardrobe_collection.find({"_id": {"$in": object_ids}}):
+        async for doc in wardrobe_collection.find({"_id": {"$in": search_ids}}):
             docs.append(doc)
 
         found_ids = {str(doc["_id"]) for doc in docs}

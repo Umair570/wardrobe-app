@@ -8,6 +8,7 @@ import { ItemDetailPanel } from "@/components/wardrobe/ItemDetailPanel";
 import { UploadModal } from "@/components/wardrobe/UploadModal";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import type { WardrobeItem } from "@/lib/types";
+import { getSlot } from "@/lib/utils";
 
 export const Route = createFileRoute("/wardrobe")({
   head: () => ({
@@ -36,12 +37,11 @@ function WardrobePage() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<WardrobeItem | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-
   const visible = useMemo(
     () =>
       items.filter(
         (i) =>
-          (filter === "all" || i.category === filter) &&
+          (filter === "all" || getSlot(i) === filter) &&
           (i.name + i.color + i.tags.join(" ")).toLowerCase().includes(query.toLowerCase()),
       ),
     [items, filter, query],
@@ -58,11 +58,10 @@ function WardrobePage() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`rounded-full px-5 py-2.5 text-[0.62rem] font-bold uppercase tracking-[0.2em] transition-all duration-300 ${
-                  filter === f
-                    ? "bg-ink text-beige shadow-soft"
-                    : "border border-border text-muted-foreground hover:border-forest hover:text-forest"
-                }`}
+                className={`rounded-full px-5 py-2.5 text-[0.62rem] font-bold uppercase tracking-[0.2em] transition-all duration-300 ${filter === f
+                  ? "bg-ink text-beige shadow-soft"
+                  : "border border-border text-muted-foreground hover:border-forest hover:text-forest"
+                  }`}
               >
                 {labels[f]}
               </button>

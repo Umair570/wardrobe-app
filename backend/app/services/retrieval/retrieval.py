@@ -30,75 +30,16 @@ Fallback chain:
 
 import logging
 import re
+import httpx
 from typing import Optional
 
+from app.core.config import settings
 from app.services.stylist.schemas import WardrobeItem
 from app.services.vector.qdrant_service import qdrant_service
 from app.services.embedding.model_registry import embedding_service
 from app.database.mongodb import wardrobe_collection
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Query parser – extract filter hints from free text
-# ---------------------------------------------------------------------------
-
-_SEASON_KEYWORDS = {
-    "summer":   "summer",
-    "winter":   "winter",
-    "spring":   "spring",
-    "autumn":   "autumn",
-    "fall":     "autumn",
-    "all-season": "all-season",
-    "year-round": "all-season",
-}
-
-_CATEGORY_KEYWORDS = {
-    "shirt":    "top",
-    "t-shirt":  "top",
-    "top":      "top",
-    "blouse":   "top",
-    "sweater":  "top",
-    "pants":    "bottom",
-    "trousers": "bottom",
-    "jeans":    "bottom",
-    "shorts":   "bottom",
-    "skirt":    "bottom",
-    "bottom":   "bottom",
-    "shoes":    "shoes",
-    "boots":    "shoes",
-    "sneakers": "shoes",
-    "heels":    "shoes",
-    "jacket":   "outerwear",
-    "coat":     "outerwear",
-    "blazer":   "outerwear",
-    "outerwear": "outerwear",
-}
-
-_STYLE_KEYWORDS = {
-    "formal":   "formal",
-    "casual":   "casual",
-    "business": "formal",
-    "smart":    "formal",
-    "sporty":   "casual",
-    "athletic": "casual",
-    "elegant":  "formal",
-}
-
-
-def _parse_query_filters(query: str) -> dict:
-    """
-    Extract optional Qdrant payload filters from the user's free-text query.
-    Returns a dict with keys: season, category, style (all Optional[str]).
-    """
-    q = query.lower()
-
-    season   = next((v for k, v in _SEASON_KEYWORDS.items()  if k in q), None)
-    category = next((v for k, v in _CATEGORY_KEYWORDS.items() if k in q), None)
-    style    = next((v for k, v in _STYLE_KEYWORDS.items()   if k in q), None)
-
-    return {"season": season, "category": category, "style": style}
 
 
 async def fetch_wardrobe_items(user_id: str) -> list[WardrobeItem]:
@@ -122,6 +63,42 @@ async def fetch_wardrobe_items(user_id: str) -> list[WardrobeItem]:
 # ---------------------------------------------------------------------------
 # Core retrieval function (Phase 8 & 9)
 # ---------------------------------------------------------------------------
+
+async def _expand_query(query: str) -> str:
+    """Expand abstract styling descriptors into explicit visual apparel keywords for FashionCLIP."""
+    if not getattr(settings, "groq_api_key", None) or settings.groq_api_key == "YOUR_GROQ_API_KEY":
+        return query
+    
+    sys_prompt = (
+        "You are a fashion extraction utility. Respond ONLY with comma-separated visual garment keywords. "
+        "Extract 3-5 explicit clothing items needed for the described scenario. "
+        "Example input: 'smart casual office meeting'. Example output: 'white button-down shirt, charcoal chinos, blazer'."
+    )
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": sys_prompt},
+                        {"role": "user", "content": query}
+                    ],
+                    "temperature": 0.0,
+                    "max_tokens": 50
+                },
+                timeout=5.0
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            rewritten = data["choices"][0]["message"]["content"].strip(' "\'.')
+            logger.debug("[retrieval] Zero-Shot query rewritten: '%s' -> '%s'", query, rewritten)
+            return rewritten
+    except Exception as e:
+        logger.warning("[retrieval] LLM zero-shot query rewrite failed: %s", e)
+        return query
 
 async def retrieve_wardrobe_for_query(
     user_id: str,
@@ -155,16 +132,17 @@ async def retrieve_wardrobe_for_query(
     logger.info("[retrieval] Starting RAG retrieval for user=%s query='%s'", user_id, query[:60])
 
     # ------------------------------------------------------------------
-    # Step 1: Parse soft filters from query
+    # Step 1: Resolve explicit overrides
     # ------------------------------------------------------------------
-    filters = _parse_query_filters(query)
-    season   = season_override   or filters["season"]
-    category = category_override or filters["category"]
-    style    = filters["style"]
+    # (Phase 2): Discarded hardcoded keyword tagging. We rely strictly on 
+    # true zero-shot semantic matching through the embedding space natively.
+    season   = season_override
+    category = category_override
+    style    = None
 
     logger.debug(
-        "[retrieval] Parsed filters – season=%s category=%s style=%s",
-        season, category, style,
+        "[retrieval] Operating with external overrides (Semantic zero-shot RAG enabled) – season=%s category=%s",
+        season, category,
     )
 
     # ------------------------------------------------------------------
@@ -173,8 +151,9 @@ async def retrieve_wardrobe_for_query(
     query_vector: Optional[list[float]] = None
 
     if embedding_service.is_available():
+        expanded_query = await _expand_query(query)
         try:
-            query_vector, latency_ms = embedding_service.timed_embed_text(query)
+            query_vector, latency_ms = embedding_service.timed_embed_text(expanded_query)
             logger.debug(
                 "[retrieval] Text embedded in %.1f ms (dim=%d)",
                 latency_ms, len(query_vector),

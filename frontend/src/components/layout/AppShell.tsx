@@ -9,7 +9,6 @@ import { useProfile } from "@/hooks/useProfile";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/wardrobe", label: "Wardrobe", icon: Shirt },
-  { to: "/studio", label: "Studio", icon: Sparkles },
   { to: "/stylist", label: "AI Stylist", icon: MessageSquare },
   { to: "/tryon", label: "Try-On", icon: Wand2 },
 ] as const;
@@ -61,8 +60,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setProfileOpen(true)}
             className="flex w-full items-center gap-3 rounded-full px-4 py-3 text-left text-xs font-bold uppercase tracking-[0.16em] text-beige/60 transition-all hover:bg-beige/10 hover:text-beige"
           >
-            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-beige/20 text-[0.55rem] font-black text-beige">
-              {initials}
+            <div className="flex h-8 w-8 shrink-0 overflow-hidden items-center justify-center rounded-full bg-beige/20 text-[0.55rem] font-black text-beige">
+              {profile?.body_photo_url ? (
+                <img src={profile.body_photo_url} alt="Profile" className="h-full w-full object-cover" />
+              ) : (
+                initials
+              )}
             </div>
             <span className="truncate">{displayName}</span>
           </button>

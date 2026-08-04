@@ -58,6 +58,7 @@ async def get_profile(current_user: UserContext = Depends(get_current_user)):
 @router.post("/body-photo", response_model=ProfileOut)
 async def upload_body_photo(
     file: UploadFile = File(...),
+    save_profile: bool = True,
     current_user: UserContext = Depends(get_current_user),
 ):
     """
@@ -84,7 +85,9 @@ async def upload_body_photo(
     # Upload to Supabase body-photos bucket
     ext = (file.filename or "photo").rsplit(".", 1)[-1].lower()
     ext = ext if ext in ("jpg", "jpeg", "png", "webp") else "jpg"
-    storage_path = f"{current_user.id}/body.{ext}"
+    
+    filename = f"body.{ext}" if save_profile else f"body_temp.{ext}"
+    storage_path = f"{current_user.id}/{filename}"
 
     try:
         body_photo_url = await supabase_storage.upload_file_bytes(
@@ -97,20 +100,30 @@ async def upload_body_photo(
         logger.error("[profile] Body photo upload failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
-    # Upsert user profile document
     now = datetime.utcnow()
-    await users_collection.update_one(
-        {"user_id": current_user.id},
-        {
-            "$set": {
-                "user_id": current_user.id,
-                "email": current_user.email,
-                "body_photo_url": body_photo_url,
-                "updated_at": now,
-            }
-        },
-        upsert=True,
-    )
+    
+    # Upsert user profile document only if requested
+    if save_profile:
+        await users_collection.update_one(
+            {"user_id": current_user.id},
+            {
+                "$set": {
+                    "user_id": current_user.id,
+                    "email": current_user.email,
+                    "body_photo_url": body_photo_url,
+                    "updated_at": now,
+                }
+            },
+            upsert=True,
+        )
+    else:
+        # Just return the URL back without committing it as their active profile picture
+        return ProfileOut(
+            user_id=current_user.id,
+            email=current_user.email,
+            body_photo_url=body_photo_url,
+            updated_at=now,
+        )
 
     logger.info("[profile] Body photo uploaded for user %s: %s", current_user.id, body_photo_url)
     return ProfileOut(

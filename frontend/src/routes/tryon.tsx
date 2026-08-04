@@ -16,8 +16,16 @@ export const Route = createFileRoute("/tryon")({
       { name: "description", content: "Mix and match outfits. Upload your photo and let the AI dress you." },
     ],
   }),
+  validateSearch: (search: { items?: string | string[] } & Record<string, unknown>) => {
+    return {
+      items: typeof search.items === "string"
+        ? search.items
+        : Array.isArray(search.items) ? search.items.join(",") : undefined,
+    };
+  },
   component: TryOnPage,
 });
+
 
 const LAY_MAP: Record<string, string> = {
   shirt: "top", sweater: "top", suit: "top", pants: "bottom",
@@ -30,10 +38,16 @@ function TryOnPage() {
   const uploadMutation = useUploadBodyPhoto();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const searchParams = Route.useSearch();
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Initialize selectedIds from searchParams or default empty string
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    const initialItems = searchParams.items ? searchParams.items.split(",") : [];
+    return new Set(initialItems.filter(Boolean));
+  });
 
   const hasBodyPhoto = Boolean(profile?.body_photo_url);
 
@@ -85,19 +99,34 @@ function TryOnPage() {
     setSelectedIds(next);
   };
 
+  const [saveAsProfile, setSaveAsProfile] = useState<boolean>(false);
+  const [tempPhotoUrl, setTempPhotoUrl] = useState<string | null>(null);
+
   const previewItems = items.filter(i => selectedIds.has(i.id));
+  const activePhotoUrl = tempPhotoUrl || profile?.body_photo_url;
+  const hasActivePhoto = !!activePhotoUrl;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) uploadMutation.mutate(file);
+    if (file) {
+      uploadMutation.mutate({ file, saveProfile: saveAsProfile }, {
+        onSuccess: (data) => {
+          if (!saveAsProfile) {
+            setTempPhotoUrl(data.body_photo_url || null);
+          } else {
+            setTempPhotoUrl(null);
+          }
+        }
+      });
+    }
   }
 
   async function handleGenerate() {
-    if (!hasBodyPhoto || previewItems.length === 0) return;
+    if (!hasActivePhoto || previewItems.length === 0) return;
     setGenerating(true);
     setResultImage(null);
     try {
-      const res = await generateTryOn(Array.from(selectedIds), profile!.body_photo_url!);
+      const res = await generateTryOn(Array.from(selectedIds), activePhotoUrl!);
       if (res.ai_image_url) {
         setResultImage(res.ai_image_url);
       }
@@ -132,14 +161,14 @@ function TryOnPage() {
               <p className="mb-4 text-[0.62rem] font-bold uppercase tracking-[0.28em] text-muted-foreground">
                 Your Avatar Photo
               </p>
-              {hasBodyPhoto ? (
+              {hasActivePhoto ? (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className="relative overflow-hidden rounded-[2rem] border border-border shadow-luxe bg-secondary/10"
                 >
                   <img
-                    src={profile!.body_photo_url!}
+                    src={activePhotoUrl!}
                     alt="Your avatar"
                     className="w-full object-contain"
                     style={{ maxHeight: "600px" }}
@@ -178,6 +207,20 @@ function TryOnPage() {
                   </div>
                 </motion.div>
               )}
+
+              <div className="flex items-center gap-2 px-1 mt-2">
+                <input
+                  type="checkbox"
+                  id="saveProfile"
+                  checked={saveAsProfile}
+                  onChange={(e) => setSaveAsProfile(e.target.checked)}
+                  className="h-4 w-4 rounded border-border text-forest focus:ring-forest bg-transparent"
+                />
+                <label htmlFor="saveProfile" className="text-xs text-muted-foreground cursor-pointer select-none">
+                  Save as default Try-On profile picture
+                </label>
+              </div>
+
               <input
                 ref={fileInputRef}
                 type="file"

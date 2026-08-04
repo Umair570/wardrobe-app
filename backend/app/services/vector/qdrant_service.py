@@ -226,16 +226,17 @@ class QdrantService:
         try:
             if query_vector:
                 results = await self._run_blocking(
-                    self.client.search,
+                    self.client.query_points,
                     collection_name=self.collection_name,
-                    query_vector=query_vector,
+                    query=query_vector,
                     query_filter=query_filter,
                     limit=limit,
                     with_payload=True,
+                    score_threshold=0.10,
                 )
                 return [
                     {"id": r.id, "score": round(r.score, 4), **r.payload}
-                    for r in results
+                    for r in getattr(results, "points", results)
                 ]
             else:
                 scroll_res, _ = await self._run_blocking(
