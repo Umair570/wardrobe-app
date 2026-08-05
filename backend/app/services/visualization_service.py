@@ -278,33 +278,39 @@ class VisualizationService:
         segmentation = doc.get("segmentation") or {}
 
         # The transparent cutout FIRST: this URL is what gets layered on the
-        # mannequin and what FASHN receives as the garment to try on. The
-        # original photo is only a fallback for items ingested before cutouts
-        # were stored — for those, every garment from one upload shares the same
-        # full-scene image, which renders and tries on incorrectly.
-        image_url = (
-            doc.get("cutout_url")
-            or segmentation.get("cutout_url")
-            or doc.get("image_url")
-            or source.get("image_url")
-        )
+        # mannequin and what FASHN receives as the garment to try on.
+        image_url = doc.get("cutout_url") or segmentation.get("cutout_url")
 
         if image_url:
-            # Always coerce to plain str — stored value might be a
-            # supabase-py PublicUrlResponse object if saved before this fix.
             image_url = str(image_url).strip()
 
         if not image_url:
-            seg_path: str = doc.get("segmentation_path") or doc.get("source_image", "")
-            # Normalise filesystem path → browser-accessible URL.
-            normalised = str(seg_path).replace("\\", "/")
-            for marker in ("uploads/", "ml/outputs/", "ml/"):
-                idx = normalised.lower().find(marker)
-                if idx != -1:
-                    image_url = "/" + normalised[idx:]
-                    break
-            else:
-                image_url = normalised if normalised.startswith("/") else "/" + normalised
+            seg_path: str = doc.get("segmentation_path")
+            if seg_path:
+                normalised = str(seg_path).replace("\\", "/")
+                for marker in ("uploads/", "ml/outputs/", "ml/"):
+                    idx = normalised.lower().find(marker)
+                    if idx != -1:
+                        image_url = "/" + normalised[idx:]
+                        break
+                else:
+                    image_url = normalised if normalised.startswith("/") else "/" + normalised
+
+        if not image_url:
+            # Fallback to the original photo
+            fallback = doc.get("image_url") or source.get("image_url") or doc.get("source_image", "")
+            if fallback:
+                fallback = str(fallback).strip()
+                if not (fallback.startswith("http://") or fallback.startswith("https://") or fallback.startswith("data:")):
+                    normalised = fallback.replace("\\", "/")
+                    for marker in ("uploads/", "ml/outputs/", "ml/"):
+                        idx = normalised.lower().find(marker)
+                        if idx != -1:
+                            fallback = "/" + normalised[idx:]
+                            break
+                    else:
+                        fallback = normalised if normalised.startswith("/") else "/" + normalised
+                image_url = fallback
 
         garment = doc.get("garment") or {}
         type_raw = doc.get("type") or garment.get("type") or "unknown"

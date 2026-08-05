@@ -6,7 +6,7 @@ class VirtualTryOnRequest(BaseModel):
     top_garment_url: Optional[str] = Field(None, description="Absolute URL to the top garment (shirt/sweater)")
     bottom_garment_url: Optional[str] = Field(None, description="Absolute URL to the bottom garment (pants/shorts)")
     dress_garment_url: Optional[str] = Field(None, description="Absolute URL to a dress garment")
-    hf_token: Optional[str] = Field(None, description="HuggingFace API token for rate limits")
+    hf_token: Optional[str] = Field(None, description="Hugging Face API token for modal access, if required")
     
     # Validation to ensure at least one garment is provided
     def check_has_garment(self):
@@ -17,4 +17,4 @@ class VirtualTryOnResponse(BaseModel):
     success: bool
     ai_image_url: Optional[str] = None
     error_message: Optional[str] = None
-    provider: str = Field(..., description="The name of the VTON provider used (e.g., OOTDiffusion)")
+    provider: str = Field(..., description="The name of the VTON provider used (e.g., FASHN modal)")

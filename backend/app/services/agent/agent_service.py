@@ -86,6 +86,7 @@ HARD RULES
   left a slot null because nothing in the wardrobe suits the conditions, say that
   outright ("you have no warm-weather footwear for this") rather than writing
   about sandals the user does not own.
+- When the query or weather is hot/warm (> 22°C / 72°F), you MUST leave outerwear_id set to null unless the user explicitly requested a jacket.
 """
 
 

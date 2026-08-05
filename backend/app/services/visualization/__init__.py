@@ -1,9 +1,9 @@
 from app.services.visualization.base import VirtualTryOnAdapter
-from app.services.visualization.ootd_vton import OOTDiffusionAdapter
+from app.services.visualization.fashn_vton import FashnVtonAdapter
 
 def get_vton_model() -> VirtualTryOnAdapter:
     """
     Factory to retrieve the active Virtual Try-On adapter.
-    For Phase 16, this is hardcoded to OOTDiffusion to support multi-garment generation.
+    FASHN VTON is the active modal-backed provider.
     """
-    return OOTDiffusionAdapter()
+    return FashnVtonAdapter()

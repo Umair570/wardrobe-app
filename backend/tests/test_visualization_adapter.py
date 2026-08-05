@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.services.visualization.ootd_vton import OOTDiffusionAdapter
+from app.services.visualization.fashn_vton import FashnVtonAdapter
 from app.services.visualization.schemas import VirtualTryOnRequest
 
 PERSON = "http://example.com/person.jpg"
@@ -32,7 +32,7 @@ def _response(status_code=200, payload=None):
 
 @pytest.mark.asyncio
 async def test_missing_garment_is_rejected_before_calling_modal():
-    response = await OOTDiffusionAdapter().generate(
+    response = await FashnVtonAdapter().generate(
         VirtualTryOnRequest(person_image_url=PERSON)
     )
     assert response.success is False
@@ -41,16 +41,15 @@ async def test_missing_garment_is_rejected_before_calling_modal():
 
 @pytest.mark.asyncio
 async def test_successful_generation_returns_a_data_uri():
-    with patch("app.services.visualization.ootd_vton.settings") as cfg, \
+    with patch("app.services.visualization.fashn_vton.settings") as cfg, \
          patch("app.services.visualization_service.VisualizationService._to_base64",
                new=AsyncMock(return_value=FAKE_B64)), \
          patch("httpx.AsyncClient.post",
                new=AsyncMock(return_value=_response(payload={"success": True, "output_b64": FAKE_B64}))):
-        cfg.ootd_provider = "modal"
-        cfg.modal_ootd_endpoint = "https://modal.test/vton"
+        cfg.fashn_vton_endpoint = "https://modal.test/vton"
         cfg.hf_token = "hf_test"
 
-        response = await OOTDiffusionAdapter().generate(
+        response = await FashnVtonAdapter().generate(
             VirtualTryOnRequest(person_image_url=PERSON, top_garment_url=TOP)
         )
 
@@ -63,15 +62,14 @@ async def test_successful_generation_returns_a_data_uri():
 async def test_every_supplied_garment_is_sent_to_modal():
     post = AsyncMock(return_value=_response(payload={"success": True, "output_b64": FAKE_B64}))
 
-    with patch("app.services.visualization.ootd_vton.settings") as cfg, \
+    with patch("app.services.visualization.fashn_vton.settings") as cfg, \
          patch("app.services.visualization_service.VisualizationService._to_base64",
                new=AsyncMock(return_value=FAKE_B64)), \
          patch("httpx.AsyncClient.post", new=post):
-        cfg.ootd_provider = "modal"
-        cfg.modal_ootd_endpoint = "https://modal.test/vton"
+        cfg.fashn_vton_endpoint = "https://modal.test/vton"
         cfg.hf_token = "hf_test"
 
-        await OOTDiffusionAdapter().generate(
+        await FashnVtonAdapter().generate(
             VirtualTryOnRequest(person_image_url=PERSON, top_garment_url=TOP, bottom_garment_url=BOTTOM)
         )
 
@@ -84,16 +82,15 @@ async def test_every_supplied_garment_is_sent_to_modal():
 
 @pytest.mark.asyncio
 async def test_modal_failure_flag_is_surfaced():
-    with patch("app.services.visualization.ootd_vton.settings") as cfg, \
+    with patch("app.services.visualization.fashn_vton.settings") as cfg, \
          patch("app.services.visualization_service.VisualizationService._to_base64",
                new=AsyncMock(return_value=FAKE_B64)), \
          patch("httpx.AsyncClient.post",
                new=AsyncMock(return_value=_response(payload={"success": False, "error": "OOM on A10G"}))):
-        cfg.ootd_provider = "modal"
-        cfg.modal_ootd_endpoint = "https://modal.test/vton"
+        cfg.fashn_vton_endpoint = "https://modal.test/vton"
         cfg.hf_token = "hf_test"
 
-        response = await OOTDiffusionAdapter().generate(
+        response = await FashnVtonAdapter().generate(
             VirtualTryOnRequest(person_image_url=PERSON, top_garment_url=TOP)
         )
 
@@ -103,16 +100,15 @@ async def test_modal_failure_flag_is_surfaced():
 
 @pytest.mark.asyncio
 async def test_empty_output_is_treated_as_failure():
-    with patch("app.services.visualization.ootd_vton.settings") as cfg, \
+    with patch("app.services.visualization.fashn_vton.settings") as cfg, \
          patch("app.services.visualization_service.VisualizationService._to_base64",
                new=AsyncMock(return_value=FAKE_B64)), \
          patch("httpx.AsyncClient.post",
                new=AsyncMock(return_value=_response(payload={"success": True, "output_b64": ""}))):
-        cfg.ootd_provider = "modal"
-        cfg.modal_ootd_endpoint = "https://modal.test/vton"
+        cfg.fashn_vton_endpoint = "https://modal.test/vton"
         cfg.hf_token = "hf_test"
 
-        response = await OOTDiffusionAdapter().generate(
+        response = await FashnVtonAdapter().generate(
             VirtualTryOnRequest(person_image_url=PERSON, top_garment_url=TOP)
         )
 
@@ -122,32 +118,30 @@ async def test_empty_output_is_treated_as_failure():
 
 @pytest.mark.asyncio
 async def test_unconfigured_endpoint_fails_cleanly():
-    with patch("app.services.visualization.ootd_vton.settings") as cfg:
-        cfg.ootd_provider = "modal"
-        cfg.modal_ootd_endpoint = ""
+    with patch("app.services.visualization.fashn_vton.settings") as cfg:
+        cfg.fashn_vton_endpoint = ""
 
-        response = await OOTDiffusionAdapter().generate(
+        response = await FashnVtonAdapter().generate(
             VirtualTryOnRequest(person_image_url=PERSON, top_garment_url=TOP)
         )
 
     assert response.success is False
-    assert "MODAL_OOTD_ENDPOINT not set" in response.error_message
+    assert "FASHN_VTON_ENDPOINT is not set" in response.error_message
 
 
 @pytest.mark.asyncio
 async def test_timeout_reports_cold_start_guidance():
     import httpx
 
-    with patch("app.services.visualization.ootd_vton.settings") as cfg, \
+    with patch("app.services.visualization.fashn_vton.settings") as cfg, \
          patch("app.services.visualization_service.VisualizationService._to_base64",
                new=AsyncMock(return_value=FAKE_B64)), \
          patch("httpx.AsyncClient.post",
                new=AsyncMock(side_effect=httpx.ReadTimeout("timed out"))):
-        cfg.ootd_provider = "modal"
-        cfg.modal_ootd_endpoint = "https://modal.test/vton"
+        cfg.fashn_vton_endpoint = "https://modal.test/vton"
         cfg.hf_token = "hf_test"
 
-        response = await OOTDiffusionAdapter().generate(
+        response = await FashnVtonAdapter().generate(
             VirtualTryOnRequest(person_image_url=PERSON, top_garment_url=TOP)
         )
 

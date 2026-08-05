@@ -3,9 +3,9 @@ from app.services.visualization.schemas import VirtualTryOnRequest, VirtualTryOn
 
 class VirtualTryOnAdapter(ABC):
     """
-    Abstract Base Class for Virtual Try-On models (Phase 16).
-    Enforces a strict interface so that the backend router can swap underlying 
-    AI models (OOTDiffusion, IDM-VTON, etc.) without breaking.
+    Abstract Base Class for Virtual Try-On models.
+    Enforces a strict interface so that the backend router can swap underlying
+    AI models without breaking.
     """
     
     @abstractmethod

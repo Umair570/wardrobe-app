@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Optional
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Base directory reaching the repo root (wardrobe-app/) where .env lives.
@@ -83,8 +84,10 @@ class Settings(BaseSettings):
     backend_base_url: str = "http://localhost:8000"
 
     # Virtual Try-On inference architecture
-    ootd_provider: str = "gradio"
-    modal_ootd_endpoint: str = ""
+    fashn_vton_endpoint: str = Field(
+        default="",
+        validation_alias=AliasChoices("FASHN_VTON_ENDPOINT", "MODAL_OOTD_ENDPOINT"),
+    )
 
     model_config = SettingsConfigDict(
         env_file=(".env", str(BASE_DIR / ".env")),
