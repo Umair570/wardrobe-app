@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.core.config import settings
-from app.routes import upload, wardrobe, chatbot, visualization, ingest, benchmark, profile
+from app.routes import upload, wardrobe, chatbot, visualization, ingest, benchmark, profile, saved_looks, activity
 from app.database.mongodb import init_db_indexes
 
 app = FastAPI(title="AI Wardrobe & Stylist Platform API", version="1.0.0")
@@ -48,6 +48,8 @@ for prefix in ["", "/api/v1"]:
     app.include_router(ingest.router, prefix=prefix)
     app.include_router(benchmark.router, prefix=prefix)
     app.include_router(profile.router, prefix=prefix)
+    app.include_router(saved_looks.router, prefix=prefix)
+    app.include_router(activity.router, prefix=prefix)
 
 
 @app.get("/health")

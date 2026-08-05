@@ -10,6 +10,8 @@ const DOT_COLOR: Record<ActivityEvent["kind"], string> = {
   add: "bg-forest ring-4 ring-forest/15 dark:ring-forest/30",
   query: "bg-gold ring-4 ring-gold/15 dark:ring-gold/30",
   favorite: "bg-ink/50 dark:bg-cream/50 ring-4 ring-ink/10 dark:ring-cream/10",
+  delete: "bg-red-500 ring-4 ring-red-500/15 dark:ring-red-500/30",
+  tryon: "bg-blue-500 ring-4 ring-blue-500/15 dark:ring-blue-500/30",
 };
 
 function renderLabel(label: string) {

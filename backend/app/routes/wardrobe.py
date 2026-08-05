@@ -102,3 +102,71 @@ async def delete_item(item_id: str, current_user: UserContext = Depends(get_curr
             print(f"[wardrobe] Note: Failed to delete Qdrant vector for {item_id}: {e}")
 
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# GET /wardrobe/recommendations – simple outfit suggestions from owned items
+# ---------------------------------------------------------------------------
+
+@router.get("/recommendations")
+async def get_recommendations(current_user: UserContext = Depends(get_current_user)):
+    """Return simple outfit recommendations based on category combinations."""
+    items = []
+    async for doc in wardrobe_collection.find({"user_id": current_user.id}):
+        items.append({
+            "id": str(doc["_id"]),
+            "category": (doc.get("category") or (doc.get("garment") or {}).get("category") or "").lower(),
+            "type": doc.get("type") or (doc.get("garment") or {}).get("type"),
+            "color": doc.get("color") or (doc.get("garment") or {}).get("color"),
+            "style": doc.get("style") or (doc.get("garment") or {}).get("style"),
+        })
+
+    tops = [i for i in items if i["category"] in ("top", "tops")]
+    bottoms = [i for i in items if i["category"] in ("bottom", "bottoms")]
+    shoes = [i for i in items if i["category"] in ("shoes", "footwear")]
+    outerwear = [i for i in items if i["category"] in ("outerwear", "jacket")]
+
+    recommendations = []
+    occasions = [
+        ("Casual day out", 92),
+        ("Work meeting", 87),
+        ("Evening dinner", 94),
+        ("Weekend brunch", 89),
+    ]
+
+    import random
+    for idx, (title, base_match) in enumerate(occasions):
+        if not tops and not bottoms:
+            break
+        rec = {"id": f"rec-{idx}", "title": title, "match": base_match}
+        hint_parts = []
+        if tops:
+            t = tops[idx % len(tops)]
+            hint_parts.append(t.get("type") or t.get("color") or "top")
+        if bottoms:
+            b = bottoms[idx % len(bottoms)]
+            hint_parts.append(b.get("type") or b.get("color") or "bottom")
+        rec["hint"] = " + ".join(hint_parts) if hint_parts else None
+        recommendations.append(rec)
+
+    return recommendations
+
+
+# ---------------------------------------------------------------------------
+# GET /wardrobe/stats – dashboard stats
+# ---------------------------------------------------------------------------
+
+@router.get("/stats")
+async def get_stats(current_user: UserContext = Depends(get_current_user)):
+    """Return wardrobe stats for the dashboard."""
+    from app.database.mongodb import saved_looks_collection, chat_sessions_collection
+
+    items_count = await wardrobe_collection.count_documents({"user_id": current_user.id})
+    looks_count = await saved_looks_collection.count_documents({"user_id": current_user.id})
+    chats_count = await chat_sessions_collection.count_documents({"user_id": current_user.id})
+
+    return {
+        "items_in_closet": items_count,
+        "looks_saved": looks_count,
+        "stylist_queries": chats_count,
+    }

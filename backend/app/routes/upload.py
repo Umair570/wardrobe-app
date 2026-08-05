@@ -228,4 +228,15 @@ async def upload_item(
             )
         )
 
+    # Log activity for each item
+    from app.database.mongodb import activity_collection
+    for ci in created_items:
+        label_name = ci.type or ci.category or "Garment"
+        await activity_collection.insert_one({
+            "user_id": current_user.id,
+            "kind": "add",
+            "label": f"Added **{label_name}** to your closet",
+            "created_at": datetime.utcnow(),
+        })
+
     return created_items

@@ -62,9 +62,9 @@ export function HoverCard({
 }: {
   children: React.ReactNode;
   className?: string;
-  as?: keyof JSX.IntrinsicElements;
+  as?: keyof React.JSX.IntrinsicElements;
 }) {
-  const Component: any = motion[as] || motion.div;
+  const Component: any = (motion as any)[as] || motion.div;
 
   return (
     <Component

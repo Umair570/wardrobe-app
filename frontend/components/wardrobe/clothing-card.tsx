@@ -3,6 +3,7 @@
 import * as React from "react";
 import { motion } from "framer-motion";
 import { Heart } from "lucide-react";
+import Link from "next/link";
 import type { ClothingItem } from "@/types";
 import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { cn } from "@/lib/utils";
@@ -28,13 +29,17 @@ export function ClothingCard({ item, favorited, onToggleFavorite, showColorDot, 
       )}
       style={{ willChange: "transform" }}
     >
-      <div className="relative aspect-[3/4] w-full overflow-hidden">
+      <div className="relative aspect-[3/4] w-full overflow-hidden bg-cream-muted dark:bg-white/5">
         <motion.div
           className="h-full w-full"
           whileHover={{ scale: 1.06 }}
           transition={{ type: "spring", stiffness: 300, damping: 22 }}
         >
-          <ImagePlaceholder label={item.name} rounded="rounded-none" />
+          {item.imageUrl ? (
+            <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+          ) : (
+            <ImagePlaceholder label={item.name} rounded="rounded-none" />
+          )}
         </motion.div>
 
         <span className="absolute left-3 top-3 rounded-full bg-white/85 px-2.5 py-1 font-mono text-[10px] font-semibold tracking-wide text-ink backdrop-blur dark:bg-ink/80 dark:text-cream">
@@ -74,9 +79,12 @@ export function ClothingCard({ item, favorited, onToggleFavorite, showColorDot, 
         )}
 
         <div className="absolute inset-x-0 bottom-0 flex gap-2 bg-gradient-to-t from-black/45 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-          <span className="flex items-center gap-1 rounded-full bg-forest/90 px-3 py-1.5 font-sans text-[11.5px] font-semibold text-white backdrop-blur-sm">
+          <Link
+            href={`/try-on?item_id=${item.id}`}
+            className="flex items-center gap-1 rounded-full bg-forest/90 px-3 py-1.5 font-sans text-[11.5px] font-semibold text-white backdrop-blur-sm hover:bg-forest transition-colors"
+          >
             Try it on
-          </span>
+          </Link>
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import { getClothingItems } from "@/lib/api/wardrobe";
 interface WardrobeContextValue {
   items: ClothingItem[];
   loading: boolean;
+  error: string | null;
   favorites: Record<string, boolean>;
   toggleFavorite: (id: string) => void;
   refresh: () => Promise<void>;
@@ -17,12 +18,21 @@ const WardrobeContext = React.createContext<WardrobeContextValue | undefined>(un
 export function WardrobeProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = React.useState<ClothingItem[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [favorites, setFavorites] = React.useState<Record<string, boolean>>({});
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      setItems(await getClothingItems());
+      const data = await getClothingItems();
+      setItems(data);
+    } catch (err: unknown) {
+      // Gracefully handle when user is not authenticated or backend is down
+      const message = err instanceof Error ? err.message : "Failed to load wardrobe";
+      console.warn("[WardrobeProvider] Could not load items:", message);
+      setError(message);
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -37,7 +47,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <WardrobeContext.Provider value={{ items, loading, favorites, toggleFavorite, refresh }}>
+    <WardrobeContext.Provider value={{ items, loading, error, favorites, toggleFavorite, refresh }}>
       {children}
     </WardrobeContext.Provider>
   );

@@ -25,6 +25,8 @@ chat_sessions_collection = db["chat_sessions"]
 chat_messages_collection = db["chat_messages"]
 users_collection       = db["users"]
 ingestion_jobs_collection = db["ingestion_jobs"]   # Phase 5: track async jobs
+saved_looks_collection   = db["saved_looks"]        # Frontend saved outfits
+activity_collection      = db["activity_events"]     # User activity feed
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +81,18 @@ async def init_db_indexes() -> None:
         await chat_messages_collection.create_index(
             [("session_id", 1), ("timestamp", 1)],
             name="message_session_idx",
+        )
+
+        # --- saved_looks ---
+        await saved_looks_collection.create_index(
+            [("user_id", 1), ("created_at", -1)],
+            name="saved_looks_user_idx",
+        )
+
+        # --- activity_events ---
+        await activity_collection.create_index(
+            [("user_id", 1), ("created_at", -1)],
+            name="activity_user_idx",
         )
 
         logger.info("[mongodb] All indexes initialized successfully.")

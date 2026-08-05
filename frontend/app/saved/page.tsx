@@ -7,7 +7,7 @@ import { AppNav } from "@/components/layout/app-nav";
 import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getSavedLooks } from "@/lib/api/wardrobe";
+import { getSavedLooks, toggleLookFavorite } from "@/lib/api/saved-looks";
 import type { SavedLook } from "@/types";
 
 export default function SavedPage() {
@@ -22,6 +22,16 @@ export default function SavedPage() {
       setLoading(false);
     });
   }, []);
+
+  async function toggleFav(lookId: string) {
+    setFavorites((f) => ({ ...f, [lookId]: !f[lookId] }));
+    try {
+      await toggleLookFavorite(lookId);
+    } catch (e) {
+      // Revert on error
+      setFavorites((f) => ({ ...f, [lookId]: !f[lookId] }));
+    }
+  }
 
   return (
     <div className="min-h-screen bg-cream dark:bg-[#161611]">
@@ -103,7 +113,7 @@ export default function SavedPage() {
                     <p className="mt-2 font-sans text-[14.5px] font-semibold text-ink dark:text-cream">{look.name}</p>
                   </div>
                   <button
-                    onClick={() => setFavorites((f) => ({ ...f, [look.id]: !f[look.id] }))}
+                    onClick={() => toggleFav(look.id)}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cream-muted dark:bg-white/10"
                   >
                     <motion.span

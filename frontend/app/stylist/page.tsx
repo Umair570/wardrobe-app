@@ -9,29 +9,41 @@ import { askStylist } from "@/lib/api/stylist";
 import type { ChatMessage } from "@/types";
 import { motion } from "framer-motion";
 
-const CHIPS = ["Rooftop dinner", "Client meeting", "Rainy commute"];
+const CHIPS = ["Rooftop dinner", "Client meeting", "Rainy commute", "Weekend brunch"];
 
 export default function StylistPage() {
   const [query, setQuery] = React.useState("");
   const [thinking, setThinking] = React.useState(false);
-  const [conversation, setConversation] = React.useState<ChatMessage[]>([
-    { id: "u1", role: "user", text: "Something for a rooftop dinner tonight?" },
-    {
-      id: "a1",
-      role: "assistant",
-      text: "For a rooftop dinner, wear your Clay Linen Shirt with Sand Pleated Trousers and Canvas Court Sneakers.",
-      look: { top: "top", bottom: "bottom", shoes: "shoes" },
-    },
-  ]);
+  const [sessionId, setSessionId] = React.useState<string | null>(null);
+  const [conversation, setConversation] = React.useState<ChatMessage[]>([]);
+  const [error, setError] = React.useState<string | null>(null);
+  const bottomRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom on new messages
+  React.useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [conversation, thinking]);
 
   async function ask(text: string) {
-    if (!text.trim()) return;
-    setConversation((c) => [...c, { id: crypto.randomUUID(), role: "user", text }]);
+    if (!text.trim() || thinking) return;
+    setError(null);
+
+    // Add user message
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", text };
+    setConversation((c) => [...c, userMsg]);
     setQuery("");
     setThinking(true);
-    const reply = await askStylist(text);
-    setThinking(false);
-    setConversation((c) => [...c, reply]);
+
+    try {
+      const reply = await askStylist(text, sessionId);
+      setSessionId(reply.sessionId ?? sessionId);
+      setConversation((c) => [...c, reply]);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      setError(message);
+    } finally {
+      setThinking(false);
+    }
   }
 
   return (
@@ -49,10 +61,27 @@ export default function StylistPage() {
         </motion.div>
 
         <div className="flex flex-col gap-5">
+          {conversation.length === 0 && (
+            <div className="flex flex-col items-center py-8 text-center">
+              <p className="font-sans text-sm text-ink/40 dark:text-cream/40">
+                Start by asking about an occasion — the stylist will search your wardrobe.
+              </p>
+            </div>
+          )}
           {conversation.map((msg) => (
             <ChatBubble key={msg.id} message={msg} />
           ))}
           {thinking && <TypingIndicator />}
+          {error && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center font-sans text-sm text-[#B5502F]"
+            >
+              {error}
+            </motion.p>
+          )}
+          <div ref={bottomRef} />
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
@@ -62,7 +91,8 @@ export default function StylistPage() {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => ask(chip)}
-              className="rounded-full bg-cream-muted px-4 py-2.5 font-sans text-[13px] text-ink transition-colors hover:bg-forest/10 dark:bg-white/10 dark:text-cream dark:hover:bg-white/15"
+              disabled={thinking}
+              className="rounded-full bg-cream-muted px-4 py-2.5 font-sans text-[13px] text-ink transition-colors hover:bg-forest/10 disabled:opacity-50 dark:bg-white/10 dark:text-cream dark:hover:bg-white/15"
             >
               {chip}
             </motion.button>
@@ -82,7 +112,7 @@ export default function StylistPage() {
             placeholder="Ask for an occasion…"
             className="flex-1 bg-transparent font-sans text-[14.5px] text-ink outline-none placeholder:text-ink/40 dark:text-cream dark:placeholder:text-cream/40"
           />
-          <Button type="submit" size="sm">
+          <Button type="submit" size="sm" disabled={thinking || !query.trim()}>
             Send
           </Button>
         </form>

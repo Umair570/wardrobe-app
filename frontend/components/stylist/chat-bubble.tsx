@@ -3,9 +3,11 @@ import type { ChatMessage } from "@/types";
 import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
+import { useWardrobe } from "@/hooks/use-wardrobe";
 
 export function ChatBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
+  const { items } = useWardrobe();
 
   return (
     <motion.div
@@ -28,16 +30,24 @@ export function ChatBubble({ message }: { message: ChatMessage }) {
                 <span className="font-mono text-[10px] tracking-wide text-gold">SUGGESTED LOOK</span>
               </div>
               <div className="flex gap-2">
-                {(["top", "bottom", "shoes"] as const).map((slot) => (
-                  <div key={slot} className="flex-1">
-                    <div className="aspect-square overflow-hidden rounded-md">
-                      <ImagePlaceholder label={slot} />
+                {(["top", "bottom", "shoes"] as const).map((slot) => {
+                  const itemId = message.look![slot];
+                  const item = items.find((i) => i.id === itemId);
+                  return (
+                    <div key={slot} className="flex-1">
+                      <div className="aspect-square overflow-hidden rounded-md bg-white/5">
+                        {item?.imageUrl ? (
+                          <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <ImagePlaceholder label={slot} />
+                        )}
+                      </div>
+                      <p className="mt-1 text-center font-mono text-[9px] uppercase tracking-wide text-ink/45 dark:text-cream/45">
+                        {slot}
+                      </p>
                     </div>
-                    <p className="mt-1 text-center font-mono text-[9px] uppercase tracking-wide text-ink/45 dark:text-cream/45">
-                      {slot}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
