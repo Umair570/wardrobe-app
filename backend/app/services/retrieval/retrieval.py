@@ -64,24 +64,41 @@ async def fetch_wardrobe_items(user_id: str) -> list[WardrobeItem]:
 # Core retrieval function (Phase 8 & 9)
 # ---------------------------------------------------------------------------
 
-async def _expand_query(query: str) -> str:
-    """Expand abstract styling descriptors into explicit visual apparel keywords for FashionCLIP."""
-    if not getattr(settings, "groq_api_key", None) or settings.groq_api_key == "YOUR_GROQ_API_KEY":
+async def _expand_query(query: str, weather_context: Optional[str] = None) -> str:
+    """Expand abstract styling descriptors and live weather into explicit visual apparel keywords for FashionCLIP."""
+    api_key = settings.active_llm_api_key
+    base_url = settings.active_llm_base_url
+    model = settings.active_llm_model
+
+    if not api_key or api_key == "YOUR_GROQ_API_KEY":
         return query
     
     sys_prompt = (
-        "You are a fashion extraction utility. Respond ONLY with comma-separated visual garment keywords. "
-        "Extract 3-5 explicit clothing items needed for the described scenario. "
-        "Example input: 'smart casual office meeting'. Example output: 'white button-down shirt, charcoal chinos, blazer'."
+        "You are a fashion extraction utility bridging abstract language to literal visual keywords. "
+        "Extract 3-5 explicit visual clothing item keywords needed for the described scenario/temperature. "
+        "CRITICAL: If weather/temperature is provided, translate it into literal clothing properties (e.g., '85F' -> 'shorts, short sleeves, sandals, lightweight'). "
+        "Respond ONLY with comma-separated visual garment keywords without quotes. "
+        "Example input: 'office meeting. Weather: 90F'. Example output: 'short sleeve button-down shirt, lightweight chinos, loafers'."
     )
     
+    if weather_context:
+        query = f"User Request: {query} | Weather Condition: {weather_context}"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if settings.llm_provider.lower() == "openrouter":
+        headers["HTTP-Referer"] = "http://localhost:3000"
+        headers["X-Title"] = "Wardrobe Stylist AI"
+
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+                base_url,
+                headers=headers,
                 json={
-                    "model": "llama-3.3-70b-versatile",
+                    "model": model,
                     "messages": [
                         {"role": "system", "content": sys_prompt},
                         {"role": "user", "content": query}
@@ -92,8 +109,7 @@ async def _expand_query(query: str) -> str:
                 timeout=5.0
             )
             resp.raise_for_status()
-            data = resp.json()
-            rewritten = data["choices"][0]["message"]["content"].strip(' "\'.')
+            rewritten = resp.json()["choices"][0]["message"]["content"].strip(' "\'.')
             logger.debug("[retrieval] Zero-Shot query rewritten: '%s' -> '%s'", query, rewritten)
             return rewritten
     except Exception as e:
@@ -106,6 +122,7 @@ async def retrieve_wardrobe_for_query(
     top_k: int = 8,
     season_override: Optional[str] = None,
     category_override: Optional[str] = None,
+    weather_context: Optional[str] = None,
 ) -> list[WardrobeItem]:
     """
     Main retrieval entry point.  Called by the chatbot route in place of the
@@ -125,6 +142,7 @@ async def retrieve_wardrobe_for_query(
         top_k:             Maximum items to retrieve from Qdrant.
         season_override:   Force a specific season filter (optional).
         category_override: Force a specific category filter (optional).
+        weather_context:   Live weather string (optional).
 
     Returns:
         List of WardrobeItem instances ready for ChatbotService.
@@ -151,7 +169,8 @@ async def retrieve_wardrobe_for_query(
     query_vector: Optional[list[float]] = None
 
     if embedding_service.is_available():
-        expanded_query = await _expand_query(query)
+        expanded_query = await _expand_query(query, weather_context)
+            
         try:
             query_vector, latency_ms = embedding_service.timed_embed_text(expanded_query)
             logger.debug(

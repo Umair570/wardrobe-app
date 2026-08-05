@@ -3,85 +3,51 @@ inference.py — Production-Grade Wardrobe Segmentation Pipeline
 ==============================================================
 
 Architecture:
-  Step 1  CLIPSeg → Semantic heatmaps for each garment class
-  Step 2  Argmax  → Divide foreground to find unique class blobs
-  Step 3  SAM2    → Fast pixel-perfect segmentation from bounding box prompts
-  Step 4  Crop    → Transparent PNG per garment item
+  Step 1  Bria RMBG-1.4 → Extract pristine pristine soft alpha masks of all foreground clothing items
+  Step 2  Connected Components → Identify separate disconnected garments internally
+  Step 3  Crop & Export → Produce transparent PNGs ready for classification
 """
 
-import torch
 import cv2
 import numpy as np
 from PIL import Image
 from pathlib import Path
 import time
-from pprint import pprint
+import torch
 
-from ml.segmentation.model import CLIP_PROCESSOR, CLIP_MODEL, SAM2_MODEL
+from ml.segmentation.model import SEG_PIPELINE
 from ml.segmentation.utils import load_image, create_output_directory
 
 _ml_dir = Path(__file__).resolve().parent.parent
 OUTPUT_DIRECTORY = str(_ml_dir / ".outputs")
 
 # ── TUNING CONSTANTS ──────────────────────────────────────────────────────────
-MAX_DIM             = 640    # Max working resolution (speed vs quality)
-CLIPSEG_THRESHOLD   = 0.30   # Min peak confidence to accept a semantic class
-MIN_ITEM_AREA_RATIO = 0.005  # Drop masks smaller than 0.5% of image
-MAX_ITEM_AREA_RATIO = 0.97   # Drop masks covering almost the entire image
-PADDING             = 6      # Extra padding around each cropped item
-
-
-def _get_clipseg_masks(image: Image.Image, prompts: list, img_w: int, img_h: int):
-    """
-    Run CLIPSeg and return (valid_indices, valid_probs as np array).
-    valid_probs has shape (N, img_h, img_w).
-    """
-    inputs = CLIP_PROCESSOR(
-        text=prompts,
-        images=[image] * len(prompts),
-        padding="max_length",
-        return_tensors="pt",
-    )
-
-    with torch.no_grad():
-        outputs = CLIP_MODEL(**inputs)
-
-    logits = outputs.logits                            # (N, H_clip, W_clip)
-    probs  = torch.sigmoid(logits).detach().cpu().numpy()
-
-    valid_indices = []
-    valid_probs   = []
-
-    for i, prompt in enumerate(prompts):
-        resized = cv2.resize(probs[i], (img_w, img_h))
-        peak    = float(np.percentile(resized, 99.5))
-        if peak >= CLIPSEG_THRESHOLD:
-            valid_indices.append(i)
-            valid_probs.append(resized)
-
-    return valid_indices, (np.array(valid_probs) if valid_probs else None)
-
+MAX_DIM             = 1024   # Use high res for perfect fabric edges
+MIN_ITEM_AREA_RATIO = 0.04   # Ignore dust, specks, tags or tiny artifacts
+MAX_ITEM_AREA_RATIO = 0.99 
+PADDING             = 15     # Keep generous padding
 
 def process_image(image_path: str, output_directory: str = OUTPUT_DIRECTORY) -> dict:
     start_time = time.time()
     create_output_directory(output_directory)
 
-    # ── Load & resize ─────────────────────────────────────────────────────────
-    image    = load_image(image_path)  # PIL RGB
-    img_w, img_h = image.size
-
-    if max(img_w, img_h) > MAX_DIM:
-        scale  = MAX_DIM / max(img_w, img_h)
-        img_w  = int(img_w * scale)
-        img_h  = int(img_h * scale)
-        image  = image.resize((img_w, img_h), Image.Resampling.LANCZOS)
-
-    img_area   = img_w * img_h
-    image_np   = np.array(image)    # uint8 RGB (H, W, 3)
+    # ── Load ──────────────────────────────────────────────────────────────────
+    image = load_image(image_path)  # PIL RGB
+    orig_w, orig_h = image.size
+    
+    if max(orig_w, orig_h) > MAX_DIM:
+        scale = MAX_DIM / max(orig_w, orig_h)
+        work_w = int(orig_w * scale)
+        work_h = int(orig_h * scale)
+        image = image.resize((work_w, work_h), Image.Resampling.LANCZOS)
+    else:
+        work_w, work_h = orig_w, orig_h
+        
+    img_area = work_w * work_h
+    image_np = np.array(image)
 
     print(f"\n{'='*60}")
-    print(f"Segmenting : {Path(image_path).name}")
-    print(f"Processing size : {img_w} × {img_h}")
+    print(f"Segmenting (RMBG): {Path(image_path).name}")
 
     result = {
         "success":         True,
@@ -92,111 +58,80 @@ def process_image(image_path: str, output_directory: str = OUTPUT_DIRECTORY) -> 
     }
     image_stem = Path(image_path).stem
 
-    # ── Step 1: CLIPSeg — semantic class detection ────────────────────────────
-    prompts = [
-        "top clothing or shirt",
-        "pants or bottom clothing",
-        "shoes or footwear",
-        "bag or purse",
-    ]
-
-    valid_indices, valid_probs = _get_clipseg_masks(image, prompts, img_w, img_h)
-
-    for i, prompt in enumerate(prompts):
-        if i in valid_indices:
-            idx = valid_indices.index(i)
-            peak = float(np.percentile(valid_probs[idx], 99.5))
-            print(f"[{image_stem}] Peak confidence for '{prompt}': {peak:.3f}  ✓")
+    # ── Step 1: Bria RMBG-1.4 Alpha Extraction ────────────────────────────────
+    try:
+        pipeline_out = SEG_PIPELINE(image)
+        
+        # RMBG can return a list or a direct PIL image
+        if isinstance(pipeline_out, list):
+            mask_img = pipeline_out[0].get("mask", pipeline_out[0].get("image"))
         else:
-            print(f"[{image_stem}] Peak confidence for '{prompt}': skip")
-
-    if valid_probs is None:
-        print(f"[{image_stem}] No confident classes found.")
-        result["processing_time"] = round(time.time() - start_time, 3)
-        result["total_items"] = 0
-        return result
-
-    # ── Step 2: Argmax to Box ─────────────────────────────────────────────────
-    # Argmax ensures every pixel belongs to exactly one garment class (no box overlapping)
-    argmax_map = np.argmax(valid_probs, axis=0)   # (H, W)
-    
-    boxes = []
-    box_prompts = []
-    
-    for local_i, global_i in enumerate(valid_indices):
-        prompt = prompts[global_i]
-        semantic_raw = (argmax_map == local_i).astype(np.uint8) * 255
-        
-        # Threshold to remove weak tail probabilities
-        mask_prob = valid_probs[local_i] > 0.1
-        semantic_raw = cv2.bitwise_and(semantic_raw, semantic_raw, mask=mask_prob.astype(np.uint8))
-        
-        # Filter tiny semantic noise islands
-        contours, _ = cv2.findContours(semantic_raw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours:
-            continue
+            mask_img = pipeline_out
             
-        largest_contour = max(contours, key=cv2.contourArea)
-        cx, cy, cw, ch = cv2.boundingRect(largest_contour)
-        
-        if cw > 5 and ch > 5:
-            # Format SAM2 expects: [x1, y1, x2, y2]
-            boxes.append([cx, cy, cx + cw, cy + ch])
-            box_prompts.append(prompt)
+        if mask_img.mode == "RGBA":
+            # Extract alpha channel
+            alpha_mask = np.array(mask_img)[:, :, 3]
+        else:
+            # Grayscale mask
+            alpha_mask = np.array(mask_img.convert("L"))
+            
+    except Exception as e:
+        print(f"RMBG execution failed: {e}")
+        return {"success": False, "error": str(e), "total_items": 0}
 
-    if not boxes:
-        print(f"[{image_stem}] Bounding box generation failed.")
-        result["processing_time"] = round(time.time() - start_time, 3)
-        result["total_items"] = 0
-        return result
-
-    # ── Step 3: SAM2 Pixel-Perfect Extraction ─────────────────────────────────
-    sam_results = SAM2_MODEL(image_np, bboxes=boxes, verbose=False)
+    # Remove floating semi-transparent noise pixels
+    _, binary_mask = cv2.threshold(alpha_mask, 150, 255, cv2.THRESH_BINARY)
     
-    if len(sam_results) == 0 or sam_results[0].masks is None:
-        print(f"[{image_stem}] SAM2 failed to generate masks.")
-        result["processing_time"] = round(time.time() - start_time, 3)
-        result["total_items"] = 0
-        return result
-        
-    sam_masks_tensor = sam_results[0].masks.data
-    # Convert tensor (N, H, W) to list of uint8 numpy arrays
-    sam_masks = [cv2.resize((m.cpu().numpy() * 255).astype(np.uint8), (img_w, img_h)) for m in sam_masks_tensor]
+    # Optional morphological closing to bridge tiny gaps inside a garment
+    kernel = np.ones((5, 5), np.uint8)
+    binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_CLOSE, kernel)
 
-    # ── Step 4: Crop & Save ───────────────────────────────────────────────────
+    # ── Step 2: Component Separation ──────────────────────────────────────────
     kept_items = []
     
-    for idx, item_mask in enumerate(sam_masks):
-        prompt = box_prompts[idx]
-        
-        area  = int(np.count_nonzero(item_mask))
+    # Isolate separately laid out garments (connected components)
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
+    
+    for i in range(1, num_labels):  # Skip background (0)
+        area = stats[i, cv2.CC_STAT_AREA]
         ratio = area / img_area
-
+        
+        # Ignore artifacts that are too small or too huge bounding box
         if not (MIN_ITEM_AREA_RATIO <= ratio <= MAX_ITEM_AREA_RATIO):
-            print(f"[{image_stem}] '{prompt}' area ratio {ratio:.4f} out of range — skipping")
             continue
-
-        rgba = np.dstack([image_np, item_mask])
-
-        cx_f, cy_f, cw_f, ch_f = cv2.boundingRect(item_mask)
-        x1 = max(0, cx_f - PADDING)
-        y1 = max(0, cy_f - PADDING)
-        x2 = min(img_w, cx_f + cw_f + PADDING)
-        y2 = min(img_h, cy_f + ch_f + PADDING)
-
+            
+        x = stats[i, cv2.CC_STAT_LEFT]
+        y = stats[i, cv2.CC_STAT_TOP]
+        w = stats[i, cv2.CC_STAT_WIDTH]
+        h = stats[i, cv2.CC_STAT_HEIGHT]
+        
+        # Instance mask filters out other disconnected garments
+        instance_binary = (labels == i).astype(np.uint8)
+        
+        # We retain the original soft alpha map for this instance for gorgeous edges
+        smooth_instance_mask = cv2.bitwise_and(alpha_mask, alpha_mask, mask=instance_binary)
+        
+        # ── Step 3: Crop & Export ─────────────────────────────────────────────
+        rgba = np.dstack([image_np, smooth_instance_mask])
+        
+        x1 = max(0, x - PADDING)
+        y1 = max(0, y - PADDING)
+        x2 = min(work_w, x + w + PADDING)
+        y2 = min(work_h, y + h + PADDING)
+        
         crop = rgba[y1:y2, x1:x2]
-        if crop.shape[0] < 2 or crop.shape[1] < 2:
+        if crop.shape[0] < 5 or crop.shape[1] < 5:
             continue
-
+            
         out_img  = Image.fromarray(crop, mode="RGBA")
         filename = f"{image_stem}_item_{len(kept_items)}.png"
         save_path = Path(output_directory) / filename
         out_img.save(save_path)
-
+        
         kept_items.append({
             "file_name":  filename,
             "path":       str(save_path),
-            "label":      prompt,
+            "label":      "extracted_foreground",
             "area_ratio": round(ratio, 4),
         })
 
@@ -206,16 +141,16 @@ def process_image(image_path: str, output_directory: str = OUTPUT_DIRECTORY) -> 
 
     print(f"Extracted {result['total_items']} items in {result['processing_time']}s")
     for item in result["items"]:
-        print(f"  → {item['file_name']}  ({item['label']})")
+        print(f"  → {item['file_name']}")
 
     return result
 
-
 if __name__ == "__main__":
-    test_folder      = Path("ml/test_images")
+    test_folder = Path("ml/test_images")
     image_extensions = {".jpg", ".jpeg", ".png", ".webp"}
 
     for image_path in sorted(test_folder.iterdir()):
         if image_path.suffix.lower() in image_extensions and not image_path.name.startswith("."):
+            from pprint import pprint
             result = process_image(str(image_path))
             pprint(result)

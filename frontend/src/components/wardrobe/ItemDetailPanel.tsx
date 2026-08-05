@@ -5,9 +5,11 @@ import type { WardrobeItem } from "@/lib/types";
 export function ItemDetailPanel({
   item,
   onClose,
+  onDelete,
 }: {
   item: WardrobeItem | null;
   onClose: () => void;
+  onDelete?: (id: string) => void;
 }) {
   return (
     <AnimatePresence>
@@ -69,6 +71,19 @@ export function ItemDetailPanel({
                   {t}
                 </span>
               ))}
+            </div>
+
+            <div className="mt-12">
+              <button
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to permanently delete this item?")) {
+                    onDelete?.(item.id);
+                  }
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500/10 py-4 text-xs font-bold uppercase tracking-widest text-red-600 transition-colors hover:bg-red-500/20"
+              >
+                Delete Garment
+              </button>
             </div>
           </motion.aside>
         </>

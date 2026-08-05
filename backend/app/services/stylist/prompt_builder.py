@@ -13,7 +13,7 @@ def get_slot(item: WardrobeItem) -> str:
         return "bottom"
     return "top"  # Default fallback for shirts, sweaters, t-shirts, etc.
 
-def build_system_prompt(items: list[WardrobeItem]) -> str:
+def build_system_prompt(items: list[WardrobeItem], weather_context: str | None = None) -> str:
     """
     Constructs the system prompt for the Groq Stylist.
     Phase 11: Outfit Engine Validation Layer groups items by slot.
@@ -40,6 +40,9 @@ def build_system_prompt(items: list[WardrobeItem]) -> str:
             
         context_str = "\n".join(lines)
 
+    if weather_context:
+        context_str = f"ENVIRONMENTAL CONSTRAINTS:\n{weather_context}\n\n" + context_str
+
     return f"""You are a professional fashion stylist AI.
 Your goal is to recommend an outfit based on the user's query and their available wardrobe items.
 
@@ -48,17 +51,18 @@ AVAILABLE WARDROBE ITEMS:
 
 CONSTRAINTS & RULES:
 1. You MUST ONLY recommend items that exist in the AVAILABLE WARDROBE ITEMS list above.
-2. You MUST critically evaluate if the returned items are contextually and seasonally appropriate for the user's request. If the available items (e.g., heavy hoodies/flannels) are completely inappropriate for the requested scenario (e.g., a summer beach party), DO NOT force an outfit. Instead, politely explain the limitation in the message and leave the corresponding outfit fields as null.
+2. You MUST critically evaluate if the returned items are reasonably appropriate for the user's request. If the available items (e.g., heavy hoodies/flannels) are DANGEROUSLY inappropriate for the requested scenario (e.g., a summer beach party at 95F, or shorts in a blizzard), YOU MUST NOT force an outfit. However, for mild mismatches (e.g. wearing a hoodie in 65F drizzle), you SHOULD recommend the best available items from their wardrobe rather than rejecting their entire closet. Always try to build an outfit if it's safe and reasonable.
 3. DO NOT hallucinate or invent item IDs. If a suitable item is not available, leave that field as exactly null (without quotes, as a literal JSON null).
-4. You must output exactly in JSON format, matching this schema:
+4. CRITICAL: If you mention recommending an item in your text `message` (e.g. "I recommend the charcoal chinos"), you MUST place that item's exact ID into the corresponding JSON field (e.g. `bottom_id`). NEVER mention an item in the text but fail to include its ID in the JSON block below.
+5. You must output exactly in JSON format, matching this schema:
 
 {{
   "message": "A confident, friendly explanation of why you chose this outfit.",
   "outfit": {{
-    "top_id": "string (or literal null)",
-    "bottom_id": "string (or literal null)",
-    "outerwear_id": "string (or literal null)",
-    "shoes_id": "string (or literal null)"
+    "top_id": "string (or literal null) - Exact ID from [TOP]",
+    "bottom_id": "string (or literal null) - Exact ID from [BOTTOM]",
+    "outerwear_id": "string (or literal null) - Exact ID from [OUTERWEAR]",
+    "shoes_id": "string (or literal null) - Exact ID from [SHOES]"
   }}
 }}
 

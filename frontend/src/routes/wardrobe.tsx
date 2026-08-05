@@ -6,7 +6,7 @@ import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { ItemCard } from "@/components/wardrobe/ItemCard";
 import { ItemDetailPanel } from "@/components/wardrobe/ItemDetailPanel";
 import { UploadModal } from "@/components/wardrobe/UploadModal";
-import { useWardrobe } from "@/hooks/useWardrobe";
+import { useWardrobe, useDeleteWardrobeItem } from "@/hooks/useWardrobe";
 import type { WardrobeItem } from "@/lib/types";
 import { getSlot } from "@/lib/utils";
 
@@ -33,6 +33,7 @@ const labels: Record<(typeof filters)[number], string> = {
 
 function WardrobePage() {
   const { data: items = [] } = useWardrobe();
+  const { mutate: deleteItem } = useDeleteWardrobeItem();
   const [filter, setFilter] = useState<(typeof filters)[number]>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<WardrobeItem | null>(null);
@@ -101,7 +102,14 @@ function WardrobePage() {
       </button>
 
       <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
-      <ItemDetailPanel item={selected} onClose={() => setSelected(null)} />
+      <ItemDetailPanel
+        item={selected}
+        onClose={() => setSelected(null)}
+        onDelete={(id) => {
+          deleteItem(id);
+          setSelected(null);
+        }}
+      />
     </AppShell>
   );
 }

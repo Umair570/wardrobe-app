@@ -1,29 +1,13 @@
 """
 model.py — Global model loading for the Wardrobe Segmentation Pipeline.
 
-Architecture: CLIPSeg + SAM2
-  - CLIPSeg : Zero-shot semantic segmentation to find bounding boxes of items
-  - SAM2    : Pixel-perfect instance mask extraction
+Architecture: Bria RMBG-1.4
+  - Flawless, pixel-perfect e-commerce background removal
+  - Capable of isolating any garment with sharp edge alpha accuracy
 """
+from transformers import pipeline
 
-from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
-from ultralytics import SAM
-
-import os
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
-print("Loading SAM2-Tiny for pixel-perfect mask extraction...")
-repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-default_sam2 = os.path.join(repo_root, "sam2_t.pt")
-sam2_path = os.getenv("SAM2_MODEL_PATH", default_sam2)
-SAM2_MODEL = SAM(sam2_path)
-print("SAM2 loaded.\n")
-
-print("Loading CLIPSeg for semantic item location...")
-clip_model_name = os.getenv("CLIPSEG_MODEL_NAME", "CIDAS/clipseg-rd64-refined")
-CLIP_PROCESSOR = CLIPSegProcessor.from_pretrained(clip_model_name)
-CLIP_MODEL     = CLIPSegForImageSegmentation.from_pretrained(clip_model_name)
-CLIP_MODEL.eval()
-print("CLIPSeg loaded.\n")
+print("Loading Bria RMBG-1.4 for flawless e-commerce background removal...")
+# trust_remote_code is required for RMBG-1.4, which executes optimized pytorch graph
+SEG_PIPELINE = pipeline("image-segmentation", model="briaai/RMBG-1.4", trust_remote_code=True)
+print("RMBG-1.4 loaded.\n")

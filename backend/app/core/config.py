@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: Optional[str] = None
     qdrant_collection: str = "wardrobe_items"
+    qdrant_score_threshold: float = 0.0
 
     # Groq LLM Infrastructure
     groq_api_key: str = ""
@@ -38,6 +39,31 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     hf_token: Optional[str] = None
+
+    @property
+    def active_llm_api_key(self) -> Optional[str]:
+        p = self.llm_provider.lower()
+        if p == "openrouter":
+            return self.openrouter_api_key
+        elif p == "openai":
+            return self.openai_api_key
+        return self.groq_api_key
+
+    @property
+    def active_llm_base_url(self) -> str:
+        p = self.llm_provider.lower()
+        if p == "openrouter":
+            return "https://openrouter.ai/api/v1/chat/completions"
+        elif p == "openai":
+            return "https://api.openai.com/v1/chat/completions"
+        return "https://api.groq.com/openai/v1/chat/completions"
+
+    @property
+    def active_llm_model(self) -> str:
+        p = self.llm_provider.lower()
+        if p == "groq":
+            return self.groq_model
+        return self.llm_model
 
     # Storage Buckets
     supabase_bucket_wardrobe: str = "wardrobe-originals"

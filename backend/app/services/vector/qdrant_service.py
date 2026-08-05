@@ -232,7 +232,7 @@ class QdrantService:
                     query_filter=query_filter,
                     limit=limit,
                     with_payload=True,
-                    score_threshold=0.10,
+                    score_threshold=0.22,
                 )
                 return [
                     {"id": r.id, "score": round(r.score, 4), **r.payload}

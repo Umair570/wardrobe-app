@@ -7,27 +7,51 @@ from app.services.stylist.prompt_builder import build_system_prompt
 
 logger = logging.getLogger(__name__)
 
-async def generate_outfit_recommendation(query: str, retrieved_items: list[WardrobeItem]) -> StylistResponse:
+async def generate_outfit_recommendation(
+    query: str, 
+    retrieved_items: list[WardrobeItem], 
+    weather_context: str | None = None,
+    chat_history: list[dict] | None = None
+) -> StylistResponse:
     """
     Calls the Groq LLM (or fallback) to generate a structured outfit recommendation.
     """
-    if not settings.groq_api_key or settings.groq_api_key == "YOUR_GROQ_API_KEY":
-        logger.warning("Groq API key not configured. Using local fallback logic.")
+    provider = getattr(settings, "llm_provider", "groq").lower()
+    if provider == "openrouter":
+        api_key = getattr(settings, "openrouter_api_key", None)
+        base_url = "https://openrouter.ai/api/v1/chat/completions"
+        model = getattr(settings, "llm_model", "openai/gpt-3.5-turbo")
+    else:
+        api_key = settings.groq_api_key
+        base_url = "https://api.groq.com/openai/v1/chat/completions"
+        model = settings.groq_model
+        
+    if not api_key or api_key == "YOUR_GROQ_API_KEY":
+        logger.warning(f"{provider} API key not configured. Using local fallback logic.")
         return _local_fallback(query, retrieved_items)
 
-    system_prompt = build_system_prompt(retrieved_items)
+    system_prompt = build_system_prompt(retrieved_items, weather_context)
     
     headers = {
-        "Authorization": f"Bearer {settings.groq_api_key}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
     
+    if provider == "openrouter":
+        headers["HTTP-Referer"] = "http://localhost:3000"
+        headers["X-Title"] = "Wardrobe Stylist AI"
+
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    if chat_history:
+        for msg in chat_history:
+            messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+            
+    messages.append({"role": "user", "content": query})
+
     payload = {
-        "model": settings.groq_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": query}
-        ],
+        "model": model,
+        "messages": messages,
         "response_format": {"type": "json_object"},
         "temperature": 0.2,
     }
@@ -35,7 +59,7 @@ async def generate_outfit_recommendation(query: str, retrieved_items: list[Wardr
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+                base_url,
                 headers=headers,
                 json=payload,
                 timeout=15.0

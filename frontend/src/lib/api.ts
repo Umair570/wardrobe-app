@@ -50,6 +50,17 @@ export async function fetchWardrobe(): Promise<WardrobeItem[]> {
   }
 }
 
+/** DELETE /api/v1/wardrobe/{id} — permanently deletes a wardrobe item */
+export async function deleteWardrobeItem(id: string): Promise<boolean> {
+  try {
+    await request(`/api/v1/wardrobe/${id}`, { method: "DELETE" });
+    return true;
+  } catch (err) {
+    console.error(`Failed to delete item ${id}:`, err);
+    return false;
+  }
+}
+
 /** POST /api/v1/ingest — uploads a garment photo for background removal + embedding. */
 export async function ingestGarment(file: File): Promise<{ ok: boolean }> {
   if (!BASE) {
@@ -131,12 +142,14 @@ export interface ChatHistoryResponse {
 export async function askStylist(
   prompt: string,
   items: WardrobeItem[],
-  session_id?: string
+  session_id?: string,
+  latitude?: number,
+  longitude?: number
 ): Promise<ChatResponse> {
   try {
     return await request<ChatResponse>("/api/v1/chat", {
       method: "POST",
-      body: JSON.stringify({ message: prompt, session_id }),
+      body: JSON.stringify({ message: prompt, session_id, latitude, longitude }),
     });
   } catch (err) {
     console.error("Stylist API failed:", err);

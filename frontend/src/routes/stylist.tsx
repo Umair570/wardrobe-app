@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Send, Sparkles, Wand2, Zap, Database, Clock, MessageSquare } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
@@ -43,9 +43,20 @@ function StylistPage() {
   const [thinking, setThinking] = useState(false);
   const [lastResponse, setLastResponse] = useState<ExtendedChatResponse | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [coords, setCoords] = useState<{ lat?: number; lon?: number }>({});
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        (err) => console.warn("Geolocation denied or failed:", err),
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    }
+  }, []);
 
   const byId = (id: string | null): WardrobeItem | null =>
     items.find((i) => i.id === id) ?? null;
@@ -68,9 +79,10 @@ function StylistPage() {
     ]);
     setThinking(true);
 
-    const res = await askStylist(text, items, activeSessionId || undefined) as ExtendedChatResponse;
+    const res = await askStylist(text, items, activeSessionId || undefined) as ExtendedChatResponse & { session_id: string };
     setThinking(false);
     setLastResponse(res);
+    setActiveSessionId(res.session_id);
     setMessages((m) => [
       ...m,
       { id: crypto.randomUUID(), role: "assistant", content: res.reply },

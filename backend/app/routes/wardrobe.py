@@ -73,11 +73,29 @@ async def get_item(item_id: str, current_user: UserContext = Depends(get_current
     return _doc_to_out(doc)
 
 
+from app.services.vector.qdrant_service import qdrant_service, _to_qdrant_id
+from app.core.config import settings
+
 @router.delete("/{item_id}")
 async def delete_item(item_id: str, current_user: UserContext = Depends(get_current_user)):
+    # 1. Delete from MongoDB
     query = {**_parse_item_id(item_id), "user_id": current_user.id}
     result = await wardrobe_collection.delete_one(query)
+    
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Item not found")
+
+    # 2. Delete from Qdrant
+    if qdrant_service.available:
+        try:
+            # Qdrant accepts valid UUIDs, but item_id is usually a hex string
+            qdrant_id = _to_qdrant_id(item_id) if len(item_id) == 24 else item_id
+            await qdrant_service._run_blocking(
+                qdrant_service.client.delete,
+                collection_name=settings.qdrant_collection,
+                points_selector=[qdrant_id]
+            )
+        except Exception as e:
+            print(f"[wardrobe] Note: Failed to delete Qdrant vector for {item_id}: {e}")
 
     return {"ok": True}

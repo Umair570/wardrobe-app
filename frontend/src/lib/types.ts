@@ -1,3 +1,9 @@
+export interface ChatSession {
+  session_id: string;
+  title: string;
+  updated_at: string;
+}
+
 export type Category = "top" | "bottom" | "shoes" | "outerwear";
 
 export interface WardrobeItem {

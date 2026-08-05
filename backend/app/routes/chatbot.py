@@ -24,6 +24,9 @@ router = APIRouter(prefix="/chat", tags=["chatbot"])
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=1_000)
     session_id: Optional[str] = Field(default=None, description="Current chat session ID")
+    # Native frontend geographical location parameters via Navigation API
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     # Legacy: frontend can still pass items directly; if provided they skip Qdrant retrieval.
     wardrobe_items: list[dict[str, Any]] | None = None
     # Phase 9 optional overrides – let the frontend pass explicit filters
@@ -56,6 +59,21 @@ async def chat(
       4. StylistService receives the item list and calls Groq LLM with structured output schema (Phase 10).
     """
     # ------------------------------------------------------------------
+    # Weather & Context Layer (Phase 5)
+    # ------------------------------------------------------------------
+    try:
+        from app.services.weather.weather_service import fetch_weather_context
+        weather_context = await fetch_weather_context(
+            query=request.message,
+            browser_lat=request.latitude,
+            browser_lon=request.longitude
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Weather context failed to initialize: %s", e)
+        weather_context = None
+
+    # ------------------------------------------------------------------
     # Resolve wardrobe items
     # ------------------------------------------------------------------
     retrieval_source = "mongodb_fallback"
@@ -78,13 +96,14 @@ async def chat(
             ))
         retrieval_source = "client_provided"
     else:
-        # Phase 8/9: RAG retrieval via Qdrant
+        # Phase 8/9/5: RAG retrieval via Qdrant with Weather
         items = await retrieve_wardrobe_for_query(
             user_id=current_user.id,
             query=request.message,
             top_k=request.top_k,
             season_override=request.season,
             category_override=request.category,
+            weather_context=weather_context,
         )
         # Detect which path was taken (Qdrant vs MongoDB fallback)
         from app.services.vector.qdrant_service import qdrant_service
@@ -121,12 +140,28 @@ async def chat(
     })
 
     # ------------------------------------------------------------------
-    # Call StylistService (Phase 10)
+    # Retrieve Chat History (Phase 11)
+    # ------------------------------------------------------------------
+    chat_history = []
+    if session_id:
+        cursor = chat_messages_collection.find({"session_id": session_id}).sort("timestamp", 1)
+        async for doc in cursor:
+            # We don't want to include the message we just inserted, as it's the `query` itself.
+            if doc["content"] != request.message:
+                chat_history.append({"role": doc["role"], "content": doc["content"]})
+
+    # Limit history to last 10 messages to avoid blowing up context
+    chat_history = chat_history[-10:]
+
+    # ------------------------------------------------------------------
+    # Call StylistService (Phase 10 & 5 & 11)
     # ------------------------------------------------------------------
     try:
         result = await generate_outfit_recommendation(
             query=request.message,
-            retrieved_items=items
+            retrieved_items=items,
+            weather_context=weather_context,
+            chat_history=chat_history
         )
         
         # ------------------------------------------------------------------

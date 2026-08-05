@@ -112,25 +112,36 @@ def _extract_dominant_color(image_np_rgb: np.ndarray, alpha: np.ndarray, n_clust
     centers = kmeans.cluster_centers_          # (n_clusters, 3) in RGB
     counts  = np.bincount(kmeans.labels_)      # pixel count per cluster
 
-    # Convert cluster centers to HSV to measure saturation
+    # Convert cluster centers to HSV to measure saturation and brightness (value)
     centers_uint8 = np.clip(centers, 0, 255).astype(np.uint8).reshape(1, -1, 3)
     centers_hsv   = cv2.cvtColor(centers_uint8, cv2.COLOR_RGB2HSV).reshape(-1, 3)
     
     # Saturation values (0-255 scale in OpenCV HSV)
     saturations = centers_hsv[:, 1].astype(np.float32)
+    values      = centers_hsv[:, 2].astype(np.float32)
 
-    # Decide strategy: if ANY cluster has decent saturation (>30), pick the most saturated
-    # Otherwise the item is genuinely achromatic — pick the largest cluster
-    SATURATION_THRESHOLD = 30
+    # Decide strategy: pick the most saturated color that is ACTUALLY visible (Value > MIN_LUMA)
+    # This prevents pitch-black shadows (which might have noisy high-saturation) from overriding the main color.
+    SATURATION_THRESHOLD = 12
+    MIN_LUMA_FOR_SATURATION = 25  # If darker than this, saturation is unreliable/invisible
 
-    if np.max(saturations) > SATURATION_THRESHOLD:
-        # Force the algorithm to prioritize large clusters to avoid bright noise pixels winning
-        # Normalize count to a percentage (0 to 1) so it scales with saturation
-        volume_ratio = counts.astype(np.float32) / np.sum(counts)
-        scores = saturations * volume_ratio
-        best_idx = int(np.argmax(scores))
-    else:
-        # Achromatic item (black/white/gray) — just pick the biggest cluster
+    best_idx = -1
+    max_score = -1
+    
+    for i in range(len(centers)):
+        vol_ratio = counts[i] / np.sum(counts)
+        # As long as the color constitutes at least 5% of the total fabric area
+        if vol_ratio >= 0.05:
+            # Ignore saturation of practically black clusters (shadows/noise)
+            if values[i] < MIN_LUMA_FOR_SATURATION:
+                continue
+                
+            if saturations[i] > max_score:
+                max_score = saturations[i]
+                best_idx = i
+                
+    # Fallback if no cluster was vibrant and visible (achromatic like black/gray/white)
+    if best_idx == -1 or max_score <= SATURATION_THRESHOLD:
         best_idx = int(np.argmax(counts))
 
     dominant_rgb = centers[best_idx]
@@ -150,7 +161,7 @@ def _nearest_color_name(rgb: np.ndarray) -> str:
         ref_uint8 = np.uint8([[[ref_rgb[0], ref_rgb[1], ref_rgb[2]]]])
         ref_lab = cv2.cvtColor(ref_uint8, cv2.COLOR_RGB2LAB)[0][0]
         
-        # Euclidean distance in LAB space (deltaE CIE76)
+        # Standard Euclidean distance in perceptual LAB space (Delta-E CIE76)
         dist = np.sqrt(np.sum((lab_pixel.astype(np.float32) - ref_lab.astype(np.float32)) ** 2))
         
         if dist < min_dist:

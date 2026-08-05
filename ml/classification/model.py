@@ -256,6 +256,7 @@ COLOR_NAMES = {
     # Neutrals
     "black":        (0, 0, 0),
     "charcoal":     (54, 54, 54),
+    "dark charcoal":(30, 30, 30),      # Shadow interceptor for pitch dark gray fabric
     "dark gray":    (90, 90, 90),
     "gray":         (140, 140, 140),
     "light gray":   (195, 195, 195),
@@ -272,6 +273,7 @@ COLOR_NAMES = {
     # Browns & Tans
     "brown":        (120, 66, 18),
     "dark brown":   (75, 40, 10),
+    "very dark brown": (45, 25, 10),
     "chocolate":    (92, 51, 23),
     "tan":          (190, 150, 110),
     "camel":        (193, 154, 107),
@@ -312,6 +314,7 @@ COLOR_NAMES = {
     "dark green":   (0, 80, 20),
     "forest green": (34, 90, 34),
     "olive":        (107, 112, 47),
+    "dark olive":   (60, 65, 40),      # Explicit hook for completely undersaturated shadow greens
     "army green":   (75, 83, 32),
     "sage":         (140, 160, 120),
     "mint":         (152, 224, 173),
@@ -330,6 +333,7 @@ COLOR_NAMES = {
     "sky blue":     (120, 186, 230),
     "baby blue":    (160, 210, 235),
     "navy":         (20, 30, 80),
+    "dark navy":    (15, 15, 35),      # Shadow interceptor for pitch dark blue fabric
     "dark blue":    (10, 20, 100),
     "royal blue":   (40, 80, 180),
     "cobalt":       (0, 71, 171),
