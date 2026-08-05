@@ -65,10 +65,14 @@ class OOTDiffusionAdapter(VirtualTryOnAdapter):
             if modal_token:
                 headers["Authorization"] = f"Bearer {modal_token}"
 
-            # Send byte stream to remote cloud
+            # Send byte stream to remote cloud.
+            # The timeout has to cover a Modal cold start: spinning up the A10G
+            # and mounting ~20 GB of FASHN weights takes minutes on the first
+            # call, versus ~40 s once the container is warm. 300 s was short
+            # enough to fail every cold request.
             async with httpx.AsyncClient() as client:
                 try:
-                    response = await client.post(modal_url, json=payload, headers=headers, timeout=300.0)
+                    response = await client.post(modal_url, json=payload, headers=headers, timeout=600.0)
                     response.raise_for_status()
                     data = response.json()
                     
@@ -85,10 +89,26 @@ class OOTDiffusionAdapter(VirtualTryOnAdapter):
                         provider="FASHN modal"
                     )
                 except httpx.HTTPStatusError as e:
-                    logger.error(f"[OOTDiffusionAdapter] Modal HTTP Status Error: {e.response.status_code} - {e.response.text}")
+                    # Modal returns an empty body on gateway-level failures, so
+                    # the status code has to be in the message or the error
+                    # reaches the user as "Validation Error: " with no cause.
+                    body = (e.response.text or "").strip() or "(empty response body)"
+                    logger.error(
+                        "[OOTDiffusionAdapter] Modal HTTP %s: %s", e.response.status_code, body
+                    )
                     return VirtualTryOnResponse(
                         success=False,
-                        error_message=f"Modal API Validation Error: {e.response.text}",
+                        error_message=f"Modal returned HTTP {e.response.status_code}: {body}",
+                        provider="FASHN modal"
+                    )
+                except httpx.TimeoutException:
+                    logger.error("[OOTDiffusionAdapter] Modal request timed out.")
+                    return VirtualTryOnResponse(
+                        success=False,
+                        error_message=(
+                            "The try-on service timed out. This is usually a cold start — "
+                            "the GPU container is loading its weights. Please try again shortly."
+                        ),
                         provider="FASHN modal"
                     )
                 except Exception as e:

@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock  # `import unittest` alone does not bind the .mock submodule
 
 from backend.app.services.image_generation_service import (
     GeminiImageGeneration,
@@ -23,6 +24,9 @@ class ImageGenerationFactoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown generator model"):
             ImageGenerationFactory.get_img_gen_model("unknown")
 
+    # Without a stubbed key this test fails on whichever machine lacks a real
+    # GEMINI_API_KEY rather than testing the provider selection it is named for.
+    @unittest.mock.patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"})
     @unittest.mock.patch("httpx.Client.post")
     def test_generates_through_selected_provider(self, mock_post) -> None:
         mock_response = unittest.mock.MagicMock()

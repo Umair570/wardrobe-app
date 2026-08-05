@@ -17,8 +17,11 @@ def _doc_to_out(doc) -> WardrobeItemOut:
 
     raw_image_url = doc.get("image_url") or source.get("image_url") or doc.get("source_image") or ""
     image_url = str(raw_image_url).strip() if raw_image_url else ""
-    
-    seg_path = doc.get("segmentation_path") or segmentation.get("cutout_url") or image_url
+
+    # Prefer the hosted transparent cutout — `segmentation_path` is a server-side
+    # ML output path the browser cannot load.
+    raw_cutout = doc.get("cutout_url") or segmentation.get("cutout_url")
+    seg_path = str(raw_cutout).strip() if raw_cutout else (doc.get("segmentation_path") or image_url)
 
     return WardrobeItemOut(
         id=str(doc["_id"]),

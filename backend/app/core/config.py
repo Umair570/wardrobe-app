@@ -33,8 +33,13 @@ class Settings(BaseSettings):
     embedding_model: str = "fashion-clip"
 
     # LLM Settings & Fallbacks
-    llm_provider: str = "groq"
-    llm_model: str = "llama-3.1-8b-instant"
+    # The stylist is a multi-step tool-calling agent, so the model needs solid
+    # function-calling: it has to sequence get_weather → several search_wardrobe
+    # calls → present_outfits and keep item IDs verbatim throughout. Small or
+    # legacy chat models (gpt-3.5-turbo, llama-3.1-8b) drop tool calls and
+    # garble IDs. Override with LLM_MODEL in .env.
+    llm_provider: str = "openrouter"
+    llm_model: str = "openai/gpt-4o-mini"
     openrouter_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None

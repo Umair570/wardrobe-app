@@ -1,120 +1,61 @@
 """
-Phase 8 & 9 – Semantic RAG Retrieval Pipeline.
+Semantic retrieval over the user's wardrobe.
 
-Replaces the raw MongoDB context dump with vector pre-filtering:
-
-    User query text
+    query text
         │
         ▼
-    Text Embedding (active embedding model from registry)
+    FashionCLIP text encoder  (same embedding space as the stored garment images)
         │
         ▼
-    Qdrant Hybrid Search
-        ├─ HARD FILTER: user_id == current_user.id
-        ├─ OPTIONAL:   season | category | style filters
-        └─ SEMANTIC:   cosine distance vs. query vector
+    Qdrant search
+        ├─ HARD FILTER: user_id == caller
+        ├─ OPTIONAL:    category | season | style | color
+        └─ SEMANTIC:    cosine distance vs. the query vector
         │
         ▼
-    Top-K Items (default: 8)
-        │
-        ▼
-    Returns List[WardrobeItem]  ← compatible with ChatbotService
-        │
-        ▼
-    Groq LLM (Phase 10) receives only relevant items, not full wardrobe dump
+    List[WardrobeItem]
 
 Fallback chain:
-    Qdrant unavailable / 0 results → MongoDB full fetch (old behaviour)
-    MongoDB unavailable → empty list → ChatbotService uses MOCK_WARDROBE
+    Qdrant unavailable / 0 results → MongoDB full fetch
+    MongoDB unavailable            → empty list
+
+The stylist agent calls `search_wardrobe`, which wraps these helpers and lets the
+LLM decide what to search for and how often. `retrieve_wardrobe_for_query` is the
+single-shot entry point kept for non-agent callers.
 """
 
 import logging
-import re
-import httpx
 from typing import Optional
 
-from app.core.config import settings
+from app.database.mongodb import wardrobe_collection
+from app.services.embedding.model_registry import embedding_service
 from app.services.stylist.schemas import WardrobeItem
 from app.services.vector.qdrant_service import qdrant_service
-from app.services.embedding.model_registry import embedding_service
-from app.database.mongodb import wardrobe_collection
 
 logger = logging.getLogger(__name__)
 
 
 async def fetch_wardrobe_items(user_id: str) -> list[WardrobeItem]:
-    """Fallback: Fetch all items for the user directly from MongoDB."""
+    """Fetch all items for the user directly from MongoDB."""
     items: list[WardrobeItem] = []
     query = {"$or": [{"user_id": user_id}, {"user_id": {"$exists": False}}]} if user_id else {}
-    
+
     async for doc in wardrobe_collection.find(query):
+        garment = doc.get("garment") or {}
         items.append(
             WardrobeItem(
                 id=str(doc["_id"]),
-                category=str(doc.get("category") or "unknown"),
-                type=str(doc.get("type") or "unknown"),
-                color=str(doc.get("color") or "unknown"),
-                tags=[str(t) for t in doc.get("tags", [])],
+                category=str(doc.get("category") or garment.get("category") or "unknown"),
+                type=str(doc.get("type") or garment.get("type") or "unknown"),
+                color=str(doc.get("color") or garment.get("color") or "unknown"),
+                style=doc.get("style") or garment.get("style"),
+                season=doc.get("season") or garment.get("season"),
+                pattern=doc.get("pattern") or garment.get("pattern"),
+                tags=[str(t) for t in (doc.get("tags") or garment.get("tags") or [])],
             )
         )
     return items
 
-
-# ---------------------------------------------------------------------------
-# Core retrieval function (Phase 8 & 9)
-# ---------------------------------------------------------------------------
-
-async def _expand_query(query: str, weather_context: Optional[str] = None) -> str:
-    """Expand abstract styling descriptors and live weather into explicit visual apparel keywords for FashionCLIP."""
-    api_key = settings.active_llm_api_key
-    base_url = settings.active_llm_base_url
-    model = settings.active_llm_model
-
-    if not api_key or api_key == "YOUR_GROQ_API_KEY":
-        return query
-    
-    sys_prompt = (
-        "You are a fashion extraction utility bridging abstract language to literal visual keywords. "
-        "Extract 3-5 explicit visual clothing item keywords needed for the described scenario/temperature. "
-        "CRITICAL: If weather/temperature is provided, translate it into literal clothing properties (e.g., '85F' -> 'shorts, short sleeves, sandals, lightweight'). "
-        "Respond ONLY with comma-separated visual garment keywords without quotes. "
-        "Example input: 'office meeting. Weather: 90F'. Example output: 'short sleeve button-down shirt, lightweight chinos, loafers'."
-    )
-    
-    if weather_context:
-        query = f"User Request: {query} | Weather Condition: {weather_context}"
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    if settings.llm_provider.lower() == "openrouter":
-        headers["HTTP-Referer"] = "http://localhost:3000"
-        headers["X-Title"] = "Wardrobe Stylist AI"
-
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                base_url,
-                headers=headers,
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": sys_prompt},
-                        {"role": "user", "content": query}
-                    ],
-                    "temperature": 0.0,
-                    "max_tokens": 50
-                },
-                timeout=5.0
-            )
-            resp.raise_for_status()
-            rewritten = resp.json()["choices"][0]["message"]["content"].strip(' "\'.')
-            logger.debug("[retrieval] Zero-Shot query rewritten: '%s' -> '%s'", query, rewritten)
-            return rewritten
-    except Exception as e:
-        logger.warning("[retrieval] LLM zero-shot query rewrite failed: %s", e)
-        return query
 
 async def retrieve_wardrobe_for_query(
     user_id: str,
@@ -122,158 +63,69 @@ async def retrieve_wardrobe_for_query(
     top_k: int = 8,
     season_override: Optional[str] = None,
     category_override: Optional[str] = None,
-    weather_context: Optional[str] = None,
 ) -> list[WardrobeItem]:
     """
-    Main retrieval entry point.  Called by the chatbot route in place of the
-    old raw MongoDB dump.
+    Embed `query` with the active model and run a filtered vector search.
 
-    Steps:
-      1. Parse soft filters from query text.
-      2. Embed the query using the active embedding model.
-      3. Run Qdrant hybrid search (hard user_id filter + optional field filters
-         + cosine vector similarity).
-      4. Convert Qdrant results → List[WardrobeItem].
-      5. Fallback to MongoDB full-fetch if Qdrant returns 0 results.
-
-    Args:
-        user_id:           Authenticated user's Supabase UID.
-        query:             User's natural-language styling request.
-        top_k:             Maximum items to retrieve from Qdrant.
-        season_override:   Force a specific season filter (optional).
-        category_override: Force a specific category filter (optional).
-        weather_context:   Live weather string (optional).
-
-    Returns:
-        List of WardrobeItem instances ready for ChatbotService.
+    Falls back to a full MongoDB fetch when Qdrant is unavailable or returns
+    nothing, so an un-indexed wardrobe still produces recommendations.
     """
-    logger.info("[retrieval] Starting RAG retrieval for user=%s query='%s'", user_id, query[:60])
+    logger.info("[retrieval] user=%s query=%r top_k=%d", user_id, query[:60], top_k)
 
-    # ------------------------------------------------------------------
-    # Step 1: Resolve explicit overrides
-    # ------------------------------------------------------------------
-    # (Phase 2): Discarded hardcoded keyword tagging. We rely strictly on 
-    # true zero-shot semantic matching through the embedding space natively.
-    season   = season_override
-    category = category_override
-    style    = None
-
-    logger.debug(
-        "[retrieval] Operating with external overrides (Semantic zero-shot RAG enabled) – season=%s category=%s",
-        season, category,
-    )
-
-    # ------------------------------------------------------------------
-    # Step 2: Embed the query text
-    # ------------------------------------------------------------------
     query_vector: Optional[list[float]] = None
-
     if embedding_service.is_available():
-        expanded_query = await _expand_query(query, weather_context)
-            
         try:
-            query_vector, latency_ms = embedding_service.timed_embed_text(expanded_query)
-            logger.debug(
-                "[retrieval] Text embedded in %.1f ms (dim=%d)",
-                latency_ms, len(query_vector),
-            )
+            query_vector, latency_ms = embedding_service.timed_embed_text(query)
+            logger.debug("[retrieval] Embedded in %.1f ms (dim=%d)", latency_ms, len(query_vector))
         except Exception as e:
-            logger.warning("[retrieval] Embedding failed (%s). Falling back to filter-only search.", e)
-            query_vector = None
+            logger.warning("[retrieval] Embedding failed (%s); using filter-only search.", e)
     else:
-        logger.warning(
-            "[retrieval] Embedding model not available "
-            "(model not downloaded yet). Using filter-only Qdrant scroll."
-        )
+        logger.warning("[retrieval] Embedding model unavailable; using filter-only Qdrant scroll.")
 
-    # ------------------------------------------------------------------
-    # Step 3: Qdrant hybrid search
-    # ------------------------------------------------------------------
     qdrant_results: list[dict] = []
-
     if qdrant_service.available:
         qdrant_results = await qdrant_service.search_items(
             user_id=user_id,
-            query_vector=query_vector,     # None → scroll (no semantic ranking)
-            category_filter=category,
-            season_filter=season,
-            style_filter=style,
+            query_vector=query_vector,      # None → scroll, no semantic ranking
+            category_filter=category_override,
+            season_filter=season_override,
             limit=top_k,
         )
-        logger.info(
-            "[retrieval] Qdrant returned %d item(s) for user=%s",
-            len(qdrant_results), user_id,
-        )
+        logger.info("[retrieval] Qdrant returned %d item(s).", len(qdrant_results))
     else:
-        logger.warning("[retrieval] Qdrant unavailable. Skipping vector search.")
+        logger.warning("[retrieval] Qdrant unavailable; skipping vector search.")
 
-    # ------------------------------------------------------------------
-    # Step 4: Convert Qdrant results → WardrobeItem
-    # ------------------------------------------------------------------
     if qdrant_results:
-        items = _qdrant_results_to_wardrobe_items(qdrant_results)
-        logger.info("[retrieval] Returning %d item(s) from Qdrant.", len(items))
-        return items
+        return _qdrant_results_to_wardrobe_items(qdrant_results)
 
-    # ------------------------------------------------------------------
-    # Step 5: Fallback – Qdrant gave 0 results (no vectors indexed yet, or
-    # Qdrant is down). Pull from MongoDB directly (old behaviour).
-    # ------------------------------------------------------------------
-    logger.info(
-        "[retrieval] Qdrant returned 0 results. Falling back to MongoDB fetch for user=%s.",
-        user_id,
-    )
-    mongo_items = await fetch_wardrobe_items(user_id)
-    logger.info("[retrieval] MongoDB fallback: %d item(s) found.", len(mongo_items))
-    return mongo_items
+    logger.info("[retrieval] Falling back to MongoDB fetch for user=%s.", user_id)
+    return await fetch_wardrobe_items(user_id)
 
-
-# ---------------------------------------------------------------------------
-# Result conversion
-# ---------------------------------------------------------------------------
 
 def _qdrant_results_to_wardrobe_items(results: list[dict]) -> list[WardrobeItem]:
     """
     Convert Qdrant payload dicts into WardrobeItem instances.
 
-    Qdrant payload shape (Phase 3/7 schema):
-        {id, mongo_id, user_id, category, type, color, style, season, tags, score?, …}
+    Payload shape: {id, mongo_id, user_id, category, type, color, style, season,
+    pattern, tags, score?}. `mongo_id` is what the rest of the system uses as the
+    item identifier — the Qdrant point id is a UUID derived from it.
     """
     items = []
     for r in results:
-        # mongo_id is stored in payload; fall back to Qdrant point id
-        item_id = r.get("mongo_id") or str(r.get("id", "unknown"))
-
-        # Garment can be in flat payload keys (Phase 7 upsert) or nested (future)
-        category = r.get("category") or "unknown"
-        typ      = r.get("type")     or "unknown"
-        color    = r.get("color")    or "unknown"
-        tags     = r.get("tags", [])
+        tags = r.get("tags", [])
         if not isinstance(tags, list):
             tags = []
 
         items.append(
             WardrobeItem(
-                id=item_id,
-                category=category,
-                type=typ,
-                color=color,
+                id=r.get("mongo_id") or str(r.get("id", "unknown")),
+                category=r.get("category") or "unknown",
+                type=r.get("type") or "unknown",
+                color=r.get("color") or "unknown",
+                style=r.get("style"),
+                season=r.get("season"),
+                pattern=r.get("pattern"),
                 tags=tags,
             )
         )
     return items
-
-
-# ---------------------------------------------------------------------------
-# Retrieval stats helper (used by the chatbot route for debug metadata)
-# ---------------------------------------------------------------------------
-
-def retrieval_stats(
-    qdrant_results: list[dict],
-    mongo_used: bool = False,
-) -> dict:
-    return {
-        "source":       "mongodb_fallback" if mongo_used else "qdrant_vector",
-        "items_count":  len(qdrant_results),
-        "top_score":    round(qdrant_results[0]["score"], 4) if qdrant_results and "score" in qdrant_results[0] else None,
-    }

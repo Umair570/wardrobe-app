@@ -1,9 +1,0 @@
-pure_white [255. 255. 255.] -> white
-dirty_white_shadows [195. 195. 195.] -> white
-very_dirty_white [160. 160. 160.] -> gray
-dark_green [30. 70. 30.] -> hunter green
-olive [107. 112.  47.] -> olive
-dark_olive_shadows [80. 85. 75.] -> dark gray
-muted_emerald [15. 65. 30.] -> hunter green
-charcoal [54. 54. 54.] -> black
-light_charcoal [75. 75. 75.] -> dark gray

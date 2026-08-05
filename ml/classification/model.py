@@ -146,6 +146,45 @@ CATEGORY_MAP = {
     "ring": "accessory", "cufflinks": "accessory",
 }
 
+# ── REGION → LABEL BANK ───────────────────────────────────────────────────────
+# The segmentation stage tells us which body region a cutout came from. Scoring
+# a shoe crop against the full 150-label bank invites nonsense matches ("blouse"
+# at 0.31), so each region is scored only against labels that can plausibly
+# occupy it. Derived from CATEGORY_MAP so the two never drift apart.
+
+REGION_TO_CATEGORIES: dict[str, set[str]] = {
+    "top":       {"shirt", "sweater", "suit", "swimwear", "underwear", "sleepwear"},
+    "outerwear": {"jacket", "sweater", "suit"},
+    # Dresses land here when CLIPSeg reads a knee-length dress as the lower
+    # region. Keeping dress categories in this bank lets FashionCLIP settle
+    # "midi skirt vs shirt dress" from the cutout, which is a call it makes well.
+    "bottom":    {"pants", "shorts", "skirt", "dress", "one-piece"},
+    "shoes":     {"shoes"},
+    "bag":       {"bag"},
+    "dress":     {"dress", "one-piece", "traditional"},
+}
+
+HEADWEAR_LABELS = [
+    "hat", "cap", "baseball cap", "fedora", "bucket hat", "visor", "beanie",
+]
+
+
+def labels_for_region(region: str | None) -> list[str]:
+    """
+    Return the candidate label bank for a segmentation region.
+    Unknown regions (and flat-lay's generic "garment") get the full bank.
+    """
+    if region == "headwear":
+        return HEADWEAR_LABELS
+
+    categories = REGION_TO_CATEGORIES.get(region or "")
+    if not categories:
+        return CATEGORY_LABELS
+
+    scoped = [lbl for lbl in CATEGORY_LABELS if CATEGORY_MAP.get(lbl) in categories]
+    return scoped or CATEGORY_LABELS
+
+
 # ── STYLE / FORMALITY LABELS ─────────────────────────────────────────────────
 
 STYLE_LABELS = [

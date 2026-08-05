@@ -101,13 +101,13 @@ async def upload_item(
     created_items = []
     for item in result.get("items", []):
         item_id = uuid.uuid4().hex
+        cutout_path = item.get("segmentation_path")
 
         # --- Embedding: ML pipeline first, embedding_service fallback ---
         embedding_vector = item.get("embedding")
         embedding_model  = item.get("embedding_model", "fashion-clip-v1")
 
         if not embedding_vector and embedding_service.is_available():
-            cutout_path = item.get("segmentation_path")
             embed_source = cutout_path if cutout_path and os.path.isfile(cutout_path) else None
             if embed_source:
                 try:
@@ -117,6 +117,22 @@ async def upload_item(
                     embedding_model  = embedding_service.active_key
                 except Exception as e:
                     print(f"[upload] Embedding fallback failed: {e}")
+
+        # --- Store the transparent garment cutout ---
+        # Everything downstream wants the isolated garment, not the photo it came
+        # from: the 2D overlay layers cutouts on a mannequin, and FASHN VTON is
+        # given this URL as the garment to put on the user. Without it every item
+        # from one upload shares the original photo and the try-on is meaningless.
+        cutout_url = None
+        if cutout_path and os.path.isfile(cutout_path):
+            try:
+                cutout_url = await supabase_storage.upload_cutout(
+                    file_path=cutout_path,
+                    user_id=current_user.id,
+                    item_id=item_id,
+                )
+            except Exception as e:
+                print(f"[upload] Warning: cutout upload failed for {item_id}: {e}")
 
         # --- Build Phase 3 schema document ---
         now = datetime.utcnow()
@@ -138,7 +154,7 @@ async def upload_item(
                 tags=item.get("tags", []),
             ).model_dump(),
             "segmentation": GarmentSegmentation(
-                cutout_url=None,   # local path, not yet stored in Supabase via this route
+                cutout_url=cutout_url,
                 bbox=item.get("bbox"),
             ).model_dump(),
             "embedding": GarmentEmbedding(
@@ -154,6 +170,7 @@ async def upload_item(
             # Legacy flat fields — kept so WardrobeItemOut still works
             "source_image":       source_path,
             "image_url":          image_url,
+            "cutout_url":         cutout_url,
             "segmentation_path":  item.get("segmentation_path", ""),
             "area_ratio":         item.get("area_ratio"),
             "category":           item.get("category"),

@@ -75,3 +75,8 @@ Thumbs.db
 *.gif
 *.bmp
 *.tiff
+
+.env
+.venv/
+sam2_t.pt
+.uploads/

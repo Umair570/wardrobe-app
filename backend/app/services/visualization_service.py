@@ -275,16 +275,27 @@ class VisualizationService:
     def _build_item_payload(self, slot: str, doc: dict) -> dict[str, Any]:
         """Convert a MongoDB doc + slot into the frontend overlay payload."""
         source = doc.get("source") or {}
-        image_url = doc.get("image_url") or source.get("image_url")
-        
+        segmentation = doc.get("segmentation") or {}
+
+        # The transparent cutout FIRST: this URL is what gets layered on the
+        # mannequin and what FASHN receives as the garment to try on. The
+        # original photo is only a fallback for items ingested before cutouts
+        # were stored — for those, every garment from one upload shares the same
+        # full-scene image, which renders and tries on incorrectly.
+        image_url = (
+            doc.get("cutout_url")
+            or segmentation.get("cutout_url")
+            or doc.get("image_url")
+            or source.get("image_url")
+        )
+
         if image_url:
             # Always coerce to plain str — stored value might be a
             # supabase-py PublicUrlResponse object if saved before this fix.
             image_url = str(image_url).strip()
-            
+
         if not image_url:
-            segmentation = doc.get("segmentation") or {}
-            seg_path: str = doc.get("segmentation_path") or segmentation.get("cutout_url") or doc.get("source_image", "")
+            seg_path: str = doc.get("segmentation_path") or doc.get("source_image", "")
             # Normalise filesystem path → browser-accessible URL.
             normalised = str(seg_path).replace("\\", "/")
             for marker in ("uploads/", "ml/outputs/", "ml/"):
