@@ -1,26 +1,69 @@
-# Verdant Luxe
+# Wardrobe.AI — Next.js frontend
 
-The UI should have lightweight animations on the landing page
+Production-ready Next.js 15 (App Router) frontend for the Wardrobe.AI product, matching the HTML design references built earlier in this project.
 
-the main fonts should be strong and bold , overall there should be a rich , premium look, you can try combination of green with beige or any other unique color that fits the theme, ocassionally use Black color as well
+## Stack
+- Next.js 15 · React 19 · TypeScript
+- Tailwind CSS (custom cream/charcoal/forest/gold palette, dark mode via `class` strategy)
+- shadcn/ui-style primitives (hand-rolled, no CLI dependency): Button, Card, Input, Badge, Avatar, Switch, Separator
+- Framer Motion for entrance/hover/page transitions
+- Lucide React icons
+- React Context for theme + wardrobe state; a thin `lib/api` layer with mock fallbacks
 
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/473240aa-73ff-4bb8-bf98-73f2d42cb1c9).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+## Getting started
+```bash
+npm install
 npm run dev
 ```
+Visit `http://localhost:3000`.
+
+## Folder structure
+```
+app/
+  layout.tsx            root layout: fonts, ThemeProvider, WardrobeProvider
+  page.tsx               /  — marketing landing page
+  dashboard/page.tsx      /dashboard
+  wardrobe/page.tsx       /wardrobe — closet grid
+  upload/page.tsx         /upload
+  stylist/page.tsx        /stylist — AI stylist chat
+  studio/page.tsx         /studio — outfit builder
+  try-on/page.tsx         /try-on
+  saved/page.tsx          /saved
+  profile/page.tsx        /profile
+  auth/page.tsx           /auth — login/register toggle
+components/
+  ui/                    shadcn-style primitives + ImagePlaceholder
+  layout/                AppNav, SiteNav, Footer, ThemeToggle
+  wardrobe/               ClothingCard
+  dashboard/              AiSearchBar, RecommendationCard, ActivityTimeline
+  stylist/                ChatBubble, TypingIndicator
+context/
+  theme-provider.tsx      light/dark theme context, persisted to localStorage
+  wardrobe-provider.tsx   closet items + favorites context
+hooks/
+  use-wardrobe.ts, use-media-query.ts, use-local-storage.ts
+lib/
+  api/                   client.ts (fetch wrapper), wardrobe.ts, stylist.ts — all fall back
+                         to mock data until NEXT_PUBLIC_API_BASE_URL is set
+  utils.ts               cn() class merge helper
+types/
+  index.ts               shared domain types
+```
+
+## Connecting a real backend
+Set `NEXT_PUBLIC_API_BASE_URL` in `.env.local`. Every function in `lib/api/*` calls
+that base URL once set; until then the app runs entirely on local mock data, so the
+UI is fully explorable standalone.
+
+## Design tokens
+- `cream` #F8F7F4 / `cream-muted` #EFE9DF — light backgrounds
+- `ink` #1E1E1E — text / dark-mode surface base
+- `forest` #2F4F3F — primary actions, active states
+- `gold` #C9A45C — highlights, active nav indicator, kickers
+- Fonts: Cormorant Garamond (display/headings), Manrope (body/UI), JetBrains Mono (labels/meta)
+
+## Notes
+- `ImagePlaceholder` stands in for garment photography / user photos everywhere;
+  swap in `next/image` once real assets are available.
+- Mock data lives next to each `lib/api/*` module — replace with real fetches once
+  the backend is live; component code doesn't need to change.

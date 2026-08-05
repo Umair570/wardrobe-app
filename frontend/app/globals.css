@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 60 14% 96%;
+  --foreground: 0 0% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 12%;
+  --border: 0 0% 12% / 0.1;
+}
+
+.dark {
+  --background: 0 0% 9%;
+  --foreground: 60 14% 96%;
+  --card: 0 0% 13%;
+  --card-foreground: 60 14% 96%;
+  --border: 60 14% 96% / 0.1;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+::selection {
+  background: #c9a45c;
+  color: #1e1e1e;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-drift-a,
+  .animate-float-y,
+  .animate-shimmer,
+  .animate-glow-pulse,
+  .animate-gradient-shift,
+  .animate-bounce {
+    animation: none !important;
+  }
+}
