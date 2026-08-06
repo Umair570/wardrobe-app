@@ -17,7 +17,12 @@ from datetime import datetime
 from app.auth.dependencies import get_current_user
 from app.core.security import UserContext
 from app.services.storage.supabase import supabase_storage
-from app.database.mongodb import users_collection
+from app.database.mongodb import (
+    users_collection,
+    wardrobe_collection,
+    saved_looks_collection,
+    chat_sessions_collection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,11 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
+class ProfileStats(BaseModel):
+    items_in_closet: int = 0
+    looks_saved: int = 0
+    stylist_queries: int = 0
+
 class ProfileOut(BaseModel):
     user_id: str
     email: Optional[str] = None
@@ -33,18 +43,33 @@ class ProfileOut(BaseModel):
     avatar_url: Optional[str] = None
     body_photo_url: Optional[str] = None
     updated_at: Optional[datetime] = None
+    stats: ProfileStats = ProfileStats()
 
 
 @router.get("/", response_model=ProfileOut)
 async def get_profile(current_user: UserContext = Depends(get_current_user)):
-    """Fetch the current user's stored profile."""
+    """Fetch the current user's stored profile and stats."""
     doc = await users_collection.find_one({"user_id": current_user.id}, {"_id": 0})
+    
+    # Fetch stats
+    items_count = await wardrobe_collection.count_documents({"user_id": current_user.id})
+    looks_count = await saved_looks_collection.count_documents({"user_id": current_user.id})
+    queries_count = await chat_sessions_collection.count_documents({"user_id": current_user.id})
+    
+    stats = ProfileStats(
+        items_in_closet=items_count,
+        looks_saved=looks_count,
+        stylist_queries=queries_count
+    )
+
     if not doc:
         # Return a minimal profile for users who haven't set one yet
         return ProfileOut(
             user_id=current_user.id,
             email=current_user.email,
+            stats=stats
         )
+        
     return ProfileOut(
         user_id=doc.get("user_id", current_user.id),
         email=doc.get("email", current_user.email),
@@ -52,6 +77,7 @@ async def get_profile(current_user: UserContext = Depends(get_current_user)):
         avatar_url=doc.get("avatar_url"),
         body_photo_url=doc.get("body_photo_url"),
         updated_at=doc.get("updated_at"),
+        stats=stats
     )
 
 

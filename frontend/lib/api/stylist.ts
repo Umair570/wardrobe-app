@@ -93,3 +93,7 @@ export async function getChatSessions(): Promise<ChatSessionMeta[]> {
 export async function getChatSessionHistory(sessionId: string): Promise<ChatSessionHistory> {
   return apiFetch<ChatSessionHistory>(`/chat/sessions/${sessionId}`);
 }
+
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  await apiFetch(`/chat/sessions/${sessionId}`, { method: "DELETE" });
+}

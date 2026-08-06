@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Heart } from "lucide-react";
+import { Heart, Trash2 } from "lucide-react";
 import { AppNav } from "@/components/layout/app-nav";
 import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getSavedLooks, toggleLookFavorite } from "@/lib/api/saved-looks";
+import { getSavedLooks, toggleLookFavorite, deleteSavedLook } from "@/lib/api/saved-looks";
 import type { SavedLook } from "@/types";
+import { cn } from "@/lib/utils";
 
 export default function SavedPage() {
   const [looks, setLooks] = React.useState<SavedLook[]>([]);
@@ -30,6 +31,16 @@ export default function SavedPage() {
     } catch (e) {
       // Revert on error
       setFavorites((f) => ({ ...f, [lookId]: !f[lookId] }));
+    }
+  }
+
+  async function handleDelete(lookId: string) {
+    if (!window.confirm("Are you sure you want to delete this saved look?")) return;
+    try {
+      await deleteSavedLook(lookId);
+      setLooks((prev) => prev.filter((l) => l.id !== lookId));
+    } catch (e) {
+      console.error("Failed to delete look", e);
     }
   }
 
@@ -65,40 +76,44 @@ export default function SavedPage() {
                 className="group mb-5 break-inside-avoid overflow-hidden rounded-lg bg-card shadow-[0_4px_16px_rgba(30,30,30,0.06)] transition-shadow hover:shadow-[0_12px_40px_rgba(30,30,30,0.1)] dark:hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)]"
                 style={{ marginBottom: i % 3 === 1 ? "2rem" : undefined }}
               >
-                <div className="relative mb-3 p-4 pb-0">
-                  <div
-                    className={`grid gap-1.5 ${i % 3 === 0 ? "grid-cols-2 grid-rows-2" : i % 3 === 1 ? "grid-cols-1" : "grid-cols-3"}`}
-                  >
-                    {i % 3 === 0 ? (
-                      <>
-                        <div className="row-span-2 aspect-square overflow-hidden rounded-md bg-white/5">
-                          {look.images[0] ? <img src={look.images[0]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
+                  <div className="relative mb-3 p-4 pb-0">
+                    <div
+                      className={cn(
+                        "grid gap-1.5",
+                        look.images.length === 1 ? "grid-cols-1" : look.images.length === 2 ? "grid-cols-2" : "grid-cols-2 grid-rows-2"
+                      )}
+                    >
+                      {look.images.length === 1 ? (
+                        <div className="aspect-[4/5] overflow-hidden rounded-md bg-white/5">
+                          <img src={look.images[0]} alt="" className="h-full w-full object-cover" />
                         </div>
-                        <div className="aspect-[1.6/1] overflow-hidden rounded-md bg-white/5">
-                          {look.images[1] ? <img src={look.images[1]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
+                      ) : look.images.length === 2 ? (
+                        <>
+                          <div className="aspect-[4/5] overflow-hidden rounded-md bg-white/5">
+                            <img src={look.images[0]} alt="" className="h-full w-full object-cover" />
+                          </div>
+                          <div className="aspect-[4/5] overflow-hidden rounded-md bg-white/5">
+                            <img src={look.images[1]} alt="" className="h-full w-full object-cover" />
+                          </div>
+                        </>
+                      ) : look.images.length >= 3 ? (
+                        <>
+                          <div className="row-span-2 aspect-[4/5] overflow-hidden rounded-md bg-white/5">
+                            <img src={look.images[0]} alt="" className="h-full w-full object-cover" />
+                          </div>
+                          <div className="aspect-square overflow-hidden rounded-md bg-white/5">
+                            <img src={look.images[1]} alt="" className="h-full w-full object-cover" />
+                          </div>
+                          <div className="aspect-square overflow-hidden rounded-md bg-white/5">
+                            <img src={look.images[2]} alt="" className="h-full w-full object-cover" />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="aspect-[4/5] overflow-hidden rounded-md bg-white/5">
+                          <ImagePlaceholder label={look.name} />
                         </div>
-                        <div className="aspect-[1.6/1] overflow-hidden rounded-md bg-white/5">
-                          {look.images[2] ? <img src={look.images[2]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
-                        </div>
-                      </>
-                    ) : i % 3 === 1 ? (
-                      <div className="aspect-[4/5] overflow-hidden rounded-md bg-white/5">
-                        {look.images[0] ? <img src={look.images[0]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder label={look.name} />}
-                      </div>
-                    ) : (
-                      <>
-                        <div className="col-span-2 aspect-[2/1] overflow-hidden rounded-md bg-white/5">
-                          {look.images[0] ? <img src={look.images[0]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
-                        </div>
-                        <div className="aspect-square overflow-hidden rounded-md bg-white/5">
-                          {look.images[1] ? <img src={look.images[1]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
-                        </div>
-                        <div className="aspect-square overflow-hidden rounded-md bg-white/5">
-                          {look.images[2] ? <img src={look.images[2]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
-                        </div>
-                      </>
-                    )}
-                  </div>
+                      )}
+                    </div>
 
                   <div className="absolute inset-x-4 bottom-0 flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                     <span className="rounded-full bg-forest/90 px-3 py-1 font-sans text-[11px] font-semibold text-white">
@@ -112,24 +127,32 @@ export default function SavedPage() {
                     <Badge variant="accent">{look.tag}</Badge>
                     <p className="mt-2 font-sans text-[14.5px] font-semibold text-ink dark:text-cream">{look.name}</p>
                   </div>
-                  <button
-                    onClick={() => toggleFav(look.id)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cream-muted dark:bg-white/10"
-                  >
-                    <motion.span
-                      key={favorites[look.id] ? "on" : "off"}
-                      initial={{ scale: 0.5 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => toggleFav(look.id)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cream-muted dark:bg-white/10"
                     >
-                      <Heart
-                        className="h-[15px] w-[15px]"
-                        fill={favorites[look.id] ? "#C9A45C" : "none"}
-                        stroke={favorites[look.id] ? "#C9A45C" : "#1E1E1E"}
-                        strokeWidth={1.6}
-                      />
-                    </motion.span>
-                  </button>
+                      <motion.span
+                        key={favorites[look.id] ? "on" : "off"}
+                        initial={{ scale: 0.5 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                      >
+                        <Heart
+                          className="h-[15px] w-[15px]"
+                          fill={favorites[look.id] ? "#C9A45C" : "none"}
+                          stroke={favorites[look.id] ? "#C9A45C" : "#1E1E1E"}
+                          strokeWidth={1.6}
+                        />
+                      </motion.span>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(look.id)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cream-muted hover:bg-red-500/10 dark:bg-white/10 dark:hover:bg-red-500/20"
+                    >
+                      <Trash2 className="h-[15px] w-[15px] text-red-500" strokeWidth={1.6} />
+                    </button>
+                  </div>
                 </div>
               </motion.article>
             ))}

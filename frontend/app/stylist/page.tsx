@@ -5,10 +5,10 @@ import { AppNav } from "@/components/layout/app-nav";
 import { ChatBubble } from "@/components/stylist/chat-bubble";
 import { TypingIndicator } from "@/components/stylist/typing-indicator";
 import { Button } from "@/components/ui/button";
-import { askStylist, getChatSessions, getChatSessionHistory, type ChatSessionMeta } from "@/lib/api/stylist";
+import { askStylist, getChatSessions, getChatSessionHistory, deleteChatSession, type ChatSessionMeta } from "@/lib/api/stylist";
 import type { ChatMessage } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Plus, Clock, ChevronDown } from "lucide-react";
+import { MessageSquare, Plus, Clock, ChevronDown, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -34,10 +34,13 @@ function StylistContent() {
       .catch((err) => console.warn("Failed to load sessions", err));
   }, []);
 
+  const hasAsked = React.useRef(false);
+
   // Handle URL query parameter for initial search
   React.useEffect(() => {
     const q = searchParams.get("q");
-    if (q && !thinking && conversation.length === 0) {
+    if (q && !thinking && conversation.length === 0 && !hasAsked.current) {
+      hasAsked.current = true;
       ask(q);
       // Clean up the URL so it doesn't trigger again on reload
       router.replace("/stylist");
@@ -80,6 +83,20 @@ function StylistContent() {
     setConversation([]);
     setError(null);
     setMobileHistoryOpen(false);
+  }
+
+  async function handleDeleteSession(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this chat history?")) return;
+    try {
+      await deleteChatSession(id);
+      setSessions((prev) => prev.filter((s) => s.session_id !== id));
+      if (sessionId === id) {
+        startNewChat();
+      }
+    } catch (err) {
+      console.error("Failed to delete chat session", err);
+    }
   }
 
   async function ask(text: string) {
@@ -146,27 +163,37 @@ function StylistContent() {
               <p className="p-2 font-sans text-[13px] text-ink/40 dark:text-cream/40">No previous chats.</p>
             ) : (
               sessions.map((s) => (
-                <button
-                  key={s.session_id}
-                  onClick={() => loadSession(s.session_id)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
-                    s.session_id === sessionId
-                      ? "bg-forest/10 dark:bg-[#8fbfa4]/10"
-                      : "hover:bg-cream-muted dark:hover:bg-white/5"
-                  )}
-                >
-                  <MessageSquare className={cn(
-                    "h-4 w-4 shrink-0", 
-                    s.session_id === sessionId ? "text-forest dark:text-[#8fbfa4]" : "text-ink/40 dark:text-cream/40"
-                  )} />
-                  <span className={cn(
-                    "truncate font-sans text-[13px]",
-                    s.session_id === sessionId ? "font-semibold text-forest dark:text-[#8fbfa4]" : "text-ink/70 dark:text-cream/70"
-                  )}>
-                    {s.title}
-                  </span>
-                </button>
+                  <button
+                    key={s.session_id}
+                    onClick={() => loadSession(s.session_id)}
+                    className={cn(
+                      "group flex items-center justify-between rounded-md px-3 py-2.5 text-left transition-colors",
+                      s.session_id === sessionId
+                        ? "bg-forest/10 dark:bg-[#8fbfa4]/10"
+                        : "hover:bg-cream-muted dark:hover:bg-white/5"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <MessageSquare className={cn(
+                        "h-4 w-4 shrink-0", 
+                        s.session_id === sessionId ? "text-forest dark:text-[#8fbfa4]" : "text-ink/40 dark:text-cream/40"
+                      )} />
+                      <span className={cn(
+                        "truncate font-sans text-[13px]",
+                        s.session_id === sessionId ? "font-semibold text-forest dark:text-[#8fbfa4]" : "text-ink/70 dark:text-cream/70"
+                      )}>
+                        {s.title}
+                      </span>
+                    </div>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => handleDeleteSession(s.session_id, e)}
+                      className="ml-2 hidden rounded-md p-1.5 text-ink/40 hover:bg-red-500/10 hover:text-red-500 group-hover:block dark:text-cream/40 dark:hover:bg-red-500/20"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </div>
+                  </button>
               ))
             )}
           </div>

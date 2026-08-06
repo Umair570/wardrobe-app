@@ -80,12 +80,30 @@ async def save_look(
     current_user: UserContext = Depends(get_current_user),
 ):
     now = datetime.utcnow()
+    from bson import ObjectId
+    from app.database.mongodb import wardrobe_collection
+    
+    images = []
+    if body.item_ids:
+        try:
+            obj_ids = [ObjectId(i) for i in body.item_ids if len(i) == 24]
+            cursor = wardrobe_collection.find({"_id": {"$in": obj_ids}})
+            items = await cursor.to_list(length=None)
+            for item in items:
+                seg = item.get("segmentation") or {}
+                src = item.get("source") or {}
+                url = item.get("cutout_url") or seg.get("cutout_url") or item.get("segmentation_path") or item.get("image_url") or src.get("image_url")
+                if url:
+                    images.append(str(url))
+        except Exception:
+            pass
+
     doc = {
         "user_id": current_user.id,
         "name": body.name,
         "tag": body.tag.upper(),
         "item_ids": body.item_ids,
-        "images": [],
+        "images": images,
         "favorited": body.favorited,
         "created_at": now,
         "updated_at": now,

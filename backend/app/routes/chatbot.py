@@ -218,3 +218,20 @@ async def get_session_history(
             for m in messages
         ],
     }
+
+@router.delete("/sessions/{session_id}")
+async def delete_session(
+    session_id: str,
+    current_user: UserContext = Depends(get_current_user),
+):
+    """Delete a specific chat session and all its messages."""
+    session = await chat_sessions_collection.find_one(
+        {"session_id": session_id, "user_id": current_user.id}
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    await chat_sessions_collection.delete_one({"session_id": session_id, "user_id": current_user.id})
+    await chat_messages_collection.delete_many({"session_id": session_id})
+
+    return {"ok": True}

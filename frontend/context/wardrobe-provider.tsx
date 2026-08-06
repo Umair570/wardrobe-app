@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { ClothingItem } from "@/types";
-import { getClothingItems } from "@/lib/api/wardrobe";
+import { getClothingItems, deleteItem } from "@/lib/api/wardrobe";
 
 interface WardrobeContextValue {
   items: ClothingItem[];
@@ -10,6 +10,7 @@ interface WardrobeContextValue {
   error: string | null;
   favorites: Record<string, boolean>;
   toggleFavorite: (id: string) => void;
+  removeItem: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -46,8 +47,18 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
     setFavorites((f) => ({ ...f, [id]: !f[id] }));
   }, []);
 
+  const removeItem = React.useCallback(async (id: string) => {
+    try {
+      await deleteItem(id);
+      setItems((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      console.error("[WardrobeProvider] Failed to delete item", err);
+      throw err;
+    }
+  }, []);
+
   return (
-    <WardrobeContext.Provider value={{ items, loading, error, favorites, toggleFavorite, refresh }}>
+    <WardrobeContext.Provider value={{ items, loading, error, favorites, toggleFavorite, removeItem, refresh }}>
       {children}
     </WardrobeContext.Provider>
   );

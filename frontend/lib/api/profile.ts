@@ -7,6 +7,11 @@ interface ProfileOut {
   avatar_url?: string | null;
   body_photo_url?: string | null;
   updated_at?: string | null;
+  stats?: {
+    items_in_closet: number;
+    looks_saved: number;
+    stylist_queries: number;
+  };
 }
 
 export async function getProfile(): Promise<ProfileOut> {
