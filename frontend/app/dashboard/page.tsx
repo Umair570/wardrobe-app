@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { AppNav } from "@/components/layout/app-nav";
 import { AiSearchBar } from "@/components/dashboard/ai-search-bar";
 import { RecommendationCard } from "@/components/dashboard/recommendation-card";
@@ -65,6 +66,8 @@ export default function DashboardPage() {
 
   const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "there";
 
+  const router = useRouter();
+
   React.useEffect(() => {
     getRecommendations()
       .then((data) => setRecs(data))
@@ -76,6 +79,14 @@ export default function DashboardPage() {
       .catch(() => setActivity([]))
       .finally(() => setLoadingActivity(false));
   }, []);
+
+  const handleSearchSubmit = () => {
+    if (query.trim()) {
+      router.push(`/stylist?q=${encodeURIComponent(query)}`);
+    } else {
+      router.push('/stylist');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-cream/80 to-cream dark:from-[#0b0b0b] dark:to-[#0b0b0b]">
@@ -94,7 +105,7 @@ export default function DashboardPage() {
 
           {/* Primary action — full width hero */}
           <motion.div variants={bentoItem} className="mb-8">
-            <AiSearchBar value={query} onChange={setQuery} onSubmit={() => setQuery("")} />
+            <AiSearchBar value={query} onChange={setQuery} onSubmit={handleSearchSubmit} />
           </motion.div>
 
           {/* Bento grid */}

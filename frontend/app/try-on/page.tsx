@@ -9,12 +9,17 @@ import { cn } from "@/lib/utils";
 import { useWardrobe } from "@/hooks/use-wardrobe";
 import { visualizeOutfit } from "@/lib/api/visualization";
 import { getProfile } from "@/lib/api/profile";
-import { Upload, User, Image as ImageIcon } from "lucide-react";
+import { Upload, User, Image as ImageIcon, Sparkles } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
-export default function TryOnPage() {
+function TryOnContent() {
   const { items, loading: wardrobeLoading } = useWardrobe();
+  const searchParams = useSearchParams();
+  const initialIds = searchParams.get("item_ids")?.split(",").filter(Boolean) || [];
+  
   const [view, setView] = React.useState<"original" | "styled">("styled");
-  const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = React.useState<string[]>(initialIds);
   const [resultImageUrl, setResultImageUrl] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -35,8 +40,6 @@ export default function TryOnPage() {
       .catch(() => {});
   }, []);
 
-  const selectedItem = items.find((i) => i.id === selectedId) || items[0];
-
   function handleTempPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -48,11 +51,18 @@ export default function TryOnPage() {
     reader.readAsDataURL(file);
   }
 
-  async function swapGarment(id: string) {
-    setSelectedId(id);
+  function toggleGarment(id: string) {
+    setSelectedIds((prev) => 
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  }
+
+  async function handleGenerate() {
+    if (selectedIds.length === 0) return;
     setLoading(true);
     setError(null);
     setResultImageUrl(null);
+    setView("styled");
 
     try {
       const activePhoto = useProfilePhoto ? profileBodyUrl : tempBodyPhotoBase64;
@@ -60,7 +70,7 @@ export default function TryOnPage() {
         throw new Error("Please select or upload a body photo first.");
       }
       
-      const result = await visualizeOutfit([id], "ai", activePhoto);
+      const result = await visualizeOutfit(selectedIds, "ai", activePhoto);
       if (result.ai_image_url) {
         setResultImageUrl(result.ai_image_url);
       }
@@ -73,8 +83,7 @@ export default function TryOnPage() {
     }
   }
 
-  // Display items (first 8 from wardrobe)
-  const garmentList = items.slice(0, 8);
+  const garmentList = items.slice(0, 16); // Show a few more items for outfits
 
   return (
     <div className="min-h-screen bg-cream dark:bg-[#161611]">
@@ -99,49 +108,98 @@ export default function TryOnPage() {
             </p>
           </div>
         ) : (
-          <>
-            {/* Body Photo Selection */}
-            <div className="mx-auto max-w-sm mb-6 rounded-lg bg-card p-4 shadow-sm border border-ink/5 dark:border-cream/5">
-              <p className="mb-3 font-mono text-[10px] tracking-wide text-ink/50 dark:text-cream/50">YOUR TRY-ON MODEL</p>
-              
-              <div className="flex flex-col gap-2">
-                {profileBodyUrl && (
-                  <button
-                    onClick={() => setUseProfilePhoto(true)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-md px-3 py-2 text-left font-sans text-[13px] transition-colors",
-                      useProfilePhoto ? "bg-forest/10 text-forest font-semibold dark:bg-[#8fbfa4]/10 dark:text-[#8fbfa4]" : "hover:bg-cream-muted dark:hover:bg-white/5"
-                    )}
-                  >
-                    <User className="h-4 w-4" />
-                    Use saved profile photo
-                  </button>
-                )}
+          <div className="flex flex-col gap-8 md:flex-row md:items-start md:gap-12">
+            
+            {/* Left Column: Try-On Settings & Action */}
+            <div className="flex-1 space-y-6">
+              {/* Body Photo Selection */}
+              <div className="rounded-lg bg-card p-4 shadow-sm border border-ink/5 dark:border-cream/5">
+                <p className="mb-3 font-mono text-[10px] tracking-wide text-ink/50 dark:text-cream/50">1. YOUR TRY-ON MODEL</p>
                 
-                <div className="relative">
-                  <button
-                    onClick={() => setUseProfilePhoto(false)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left font-sans text-[13px] transition-colors",
-                      !useProfilePhoto && tempBodyPhotoBase64 ? "bg-forest/10 text-forest font-semibold dark:bg-[#8fbfa4]/10 dark:text-[#8fbfa4]" : "hover:bg-cream-muted dark:hover:bg-white/5"
-                    )}
-                  >
-                    <ImageIcon className="h-4 w-4" />
-                    {tempBodyPhotoBase64 ? "Using uploaded photo" : "Upload a temporary photo"}
-                  </button>
-                  <input
-                    type="file"
-                    accept="image/jpeg, image/png, image/webp"
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                    onChange={handleTempPhotoUpload}
-                    title="Upload temporary photo"
-                  />
+                <div className="flex flex-col gap-2">
+                  {profileBodyUrl && (
+                    <button
+                      onClick={() => setUseProfilePhoto(true)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-md px-3 py-2 text-left font-sans text-[13px] transition-colors",
+                        useProfilePhoto ? "bg-forest/10 text-forest font-semibold dark:bg-[#8fbfa4]/10 dark:text-[#8fbfa4]" : "hover:bg-cream-muted dark:hover:bg-white/5"
+                      )}
+                    >
+                      <User className="h-4 w-4" />
+                      Use saved profile photo
+                    </button>
+                  )}
+                  
+                  <div className="relative">
+                    <button
+                      onClick={() => setUseProfilePhoto(false)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left font-sans text-[13px] transition-colors",
+                        !useProfilePhoto && tempBodyPhotoBase64 ? "bg-forest/10 text-forest font-semibold dark:bg-[#8fbfa4]/10 dark:text-[#8fbfa4]" : "hover:bg-cream-muted dark:hover:bg-white/5"
+                      )}
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                      {tempBodyPhotoBase64 ? "Using uploaded photo" : "Upload a temporary photo"}
+                    </button>
+                    <input
+                      type="file"
+                      accept="image/jpeg, image/png, image/webp"
+                      className="absolute inset-0 cursor-pointer opacity-0"
+                      onChange={handleTempPhotoUpload}
+                      title="Upload temporary photo"
+                    />
+                  </div>
                 </div>
               </div>
+
+              {/* Garment Selection Grid */}
+              <div className="rounded-lg bg-card p-4 shadow-sm border border-ink/5 dark:border-cream/5">
+                <p className="mb-3 font-mono text-[10px] tracking-wide text-ink/50 dark:text-cream/50">2. SELECT GARMENTS</p>
+                <div className="flex flex-wrap gap-2.5 max-h-[300px] overflow-y-auto">
+                  {garmentList.map((item) => {
+                    const isSelected = selectedIds.includes(item.id);
+                    return (
+                      <motion.button
+                        key={item.id}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => toggleGarment(item.id)}
+                        className="flex flex-col items-center gap-1.5"
+                      >
+                        <div
+                          className={cn(
+                            "h-[72px] w-[72px] overflow-hidden rounded-md border-2 transition-colors bg-cream-muted dark:bg-white/5 relative",
+                            isSelected ? "border-gold shadow-[0_0_12px_rgba(201,164,92,0.3)]" : "border-transparent"
+                          )}
+                        >
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <ImagePlaceholder label={item.name.slice(0, 8)} />
+                          )}
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-gold/10" />
+                          )}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <Button
+                onClick={handleGenerate}
+                disabled={loading || selectedIds.length === 0}
+                className="w-full font-semibold"
+                size="lg"
+              >
+                {loading ? "Visualizing..." : `Try On ${selectedIds.length} Item${selectedIds.length === 1 ? '' : 's'}`}
+                {!loading && <Sparkles className="ml-2 h-4 w-4" />}
+              </Button>
             </div>
 
-            {/* Focal result with floating toggle */}
-            <div className="relative mx-auto max-w-sm">
+            {/* Right Column: Focal Result */}
+            <div className="relative mx-auto w-full max-w-sm shrink-0 md:sticky md:top-24">
               <div className="relative aspect-[3/4] overflow-hidden rounded-2xl shadow-[0_20px_60px_rgba(30,30,30,0.12)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
                 <AnimatePresence mode="wait">
                   {loading ? (
@@ -150,7 +208,7 @@ export default function TryOnPage() {
                     </motion.div>
                   ) : resultImageUrl && isStyled ? (
                     <motion.div
-                      key={`result-${selectedId}`}
+                      key={resultImageUrl}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -159,26 +217,17 @@ export default function TryOnPage() {
                     >
                       <img src={resultImageUrl} alt="Try-on result" className="h-full w-full object-cover" />
                     </motion.div>
-                  ) : selectedItem?.imageUrl ? (
-                    <motion.div
-                      key={`original-${selectedId}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.35 }}
-                      className="h-full"
-                    >
-                      <img src={selectedItem.imageUrl} alt={selectedItem.name} className="h-full w-full object-cover" />
-                    </motion.div>
                   ) : (
                     <motion.div
                       key="placeholder"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="h-full"
+                      className="flex h-full flex-col items-center justify-center p-6 text-center text-ink/40 dark:text-cream/40"
                     >
-                      <ImagePlaceholder label={selectedItem?.name || "Select a garment"} rounded="rounded-none" />
+                      <Sparkles className="mb-3 h-8 w-8 opacity-20" />
+                      <p className="font-mono text-xs tracking-wide">Ready to visualize</p>
+                      <p className="mt-2 font-sans text-xs">Select garments and click Try On</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -205,43 +254,26 @@ export default function TryOnPage() {
                 </div>
               </div>
 
-              <p className="mt-4 text-center font-sans text-[13px] text-ink/55 dark:text-cream/55">
-                {selectedItem ? (isStyled ? `With ${selectedItem.name}` : "Original garment photo") : "Select a garment below"}
-              </p>
+
               {error && (
-                <p className="mt-2 text-center font-sans text-xs text-[#B5502F]">{error}</p>
+                <p className="mt-4 text-center font-sans text-xs text-[#B5502F]">{error}</p>
               )}
             </div>
-
-            <p className="mb-3.5 mt-9 font-mono text-[10.5px] tracking-wide text-ink/50 dark:text-cream/50">SWAP GARMENT</p>
-            <div className="flex flex-wrap justify-center gap-3.5">
-              {garmentList.map((item) => (
-                <motion.button
-                  key={item.id}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => swapGarment(item.id)}
-                  className="flex flex-col items-center gap-2"
-                >
-                  <div
-                    className={cn(
-                      "h-16 w-16 overflow-hidden rounded-md border-2 transition-colors",
-                      item.id === (selectedId || items[0]?.id) ? "border-gold shadow-[0_0_12px_rgba(201,164,92,0.3)]" : "border-transparent"
-                    )}
-                  >
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <ImagePlaceholder label={item.name.slice(0, 8)} />
-                    )}
-                  </div>
-                  <span className="max-w-[80px] truncate font-sans text-[11px] text-ink dark:text-cream">{item.name}</span>
-                </motion.button>
-              ))}
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+export default function TryOnPage() {
+  return (
+    <React.Suspense fallback={
+      <div className="min-h-screen bg-cream dark:bg-[#161611] flex items-center justify-center">
+        <div className="font-mono text-xs text-gold animate-pulse">Loading Try-On...</div>
+      </div>
+    }>
+      <TryOnContent />
+    </React.Suspense>
   );
 }

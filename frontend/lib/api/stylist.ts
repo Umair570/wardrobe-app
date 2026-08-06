@@ -62,3 +62,34 @@ export async function askStylist(
       : undefined,
   };
 }
+
+export interface ChatSessionMeta {
+  session_id: string;
+  title: string;
+  updated_at: string;
+}
+
+export interface ChatSessionHistory {
+  session_id: string;
+  messages: Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    outfits?: Array<{
+      title: string;
+      rationale: string;
+      top_id?: string | null;
+      bottom_id?: string | null;
+      outerwear_id?: string | null;
+      shoes_id?: string | null;
+    }>;
+  }>;
+}
+
+export async function getChatSessions(): Promise<ChatSessionMeta[]> {
+  return apiFetch<ChatSessionMeta[]>("/chat/sessions");
+}
+
+export async function getChatSessionHistory(sessionId: string): Promise<ChatSessionHistory> {
+  return apiFetch<ChatSessionHistory>(`/chat/sessions/${sessionId}`);
+}

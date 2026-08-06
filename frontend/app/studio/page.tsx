@@ -6,15 +6,17 @@ import { AppNav } from "@/components/layout/app-nav";
 import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Save, RotateCcw } from "lucide-react";
+import { Save, RotateCcw, Sparkles } from "lucide-react";
 import { useWardrobe } from "@/hooks/use-wardrobe";
 import { saveLook } from "@/lib/api/saved-looks";
 import { visualizeOutfit } from "@/lib/api/visualization";
+import { useRouter } from "next/navigation";
 
 type Zone = "top" | "bottom" | "shoes";
 
 export default function StudioPage() {
   const { items, refresh } = useWardrobe();
+  const router = useRouter();
   const [zone, setZone] = React.useState<Zone>("top");
   
   // Keep track of the currently selected piece for each zone
@@ -187,12 +189,23 @@ export default function StudioPage() {
           </div>
 
           {/* Floating actions */}
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Button variant="secondary" size="sm" onClick={() => { setLook({ top: null, bottom: null, shoes: null }); setSaved(false); }}>
               <RotateCcw className="h-3.5 w-3.5" /> Reset
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={loading || (!look.top && !look.bottom && !look.shoes)}>
+            <Button size="sm" variant="outline" onClick={handleSave} disabled={loading || (!look.top && !look.bottom && !look.shoes)}>
               <Save className="h-3.5 w-3.5" /> Save look
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={() => {
+                const itemIds = [look.top, look.bottom, look.shoes].filter(Boolean) as string[];
+                router.push(`/try-on?item_ids=${itemIds.join(",")}`);
+              }}
+              disabled={loading || (!look.top && !look.bottom && !look.shoes)}
+              className="bg-gold hover:bg-gold/90 text-ink border-transparent"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1" /> Visualize on me
             </Button>
           </div>
           <AnimatePresence>

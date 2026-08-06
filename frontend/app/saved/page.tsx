@@ -71,30 +71,30 @@ export default function SavedPage() {
                   >
                     {i % 3 === 0 ? (
                       <>
-                        <div className="row-span-2 aspect-square overflow-hidden rounded-md">
-                          <ImagePlaceholder />
+                        <div className="row-span-2 aspect-square overflow-hidden rounded-md bg-white/5">
+                          {look.images[0] ? <img src={look.images[0]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
                         </div>
-                        <div className="aspect-[1.6/1] overflow-hidden rounded-md">
-                          <ImagePlaceholder />
+                        <div className="aspect-[1.6/1] overflow-hidden rounded-md bg-white/5">
+                          {look.images[1] ? <img src={look.images[1]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
                         </div>
-                        <div className="aspect-[1.6/1] overflow-hidden rounded-md">
-                          <ImagePlaceholder />
+                        <div className="aspect-[1.6/1] overflow-hidden rounded-md bg-white/5">
+                          {look.images[2] ? <img src={look.images[2]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
                         </div>
                       </>
                     ) : i % 3 === 1 ? (
-                      <div className="aspect-[4/5] overflow-hidden rounded-md">
-                        <ImagePlaceholder label={look.name} />
+                      <div className="aspect-[4/5] overflow-hidden rounded-md bg-white/5">
+                        {look.images[0] ? <img src={look.images[0]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder label={look.name} />}
                       </div>
                     ) : (
                       <>
-                        <div className="col-span-2 aspect-[2/1] overflow-hidden rounded-md">
-                          <ImagePlaceholder />
+                        <div className="col-span-2 aspect-[2/1] overflow-hidden rounded-md bg-white/5">
+                          {look.images[0] ? <img src={look.images[0]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
                         </div>
-                        <div className="aspect-square overflow-hidden rounded-md">
-                          <ImagePlaceholder />
+                        <div className="aspect-square overflow-hidden rounded-md bg-white/5">
+                          {look.images[1] ? <img src={look.images[1]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
                         </div>
-                        <div className="aspect-square overflow-hidden rounded-md">
-                          <ImagePlaceholder />
+                        <div className="aspect-square overflow-hidden rounded-md bg-white/5">
+                          {look.images[2] ? <img src={look.images[2]} alt="" className="h-full w-full object-cover" /> : <ImagePlaceholder />}
                         </div>
                       </>
                     )}

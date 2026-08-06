@@ -8,7 +8,7 @@ export function SiteNav() {
   return (
     <nav className="sticky top-0 z-20 flex items-center justify-between border-b border-ink/10 bg-cream/70 px-6 py-5 backdrop-blur-md dark:border-cream/10 dark:bg-[#161611]/70 md:px-12">
       <span className="font-heading text-2xl italic font-semibold text-ink dark:text-cream">
-        Wardrobe.AI
+        Tailored for you
       </span>
       <div className="flex items-center gap-8">
         <Link href="#how" className="hidden font-sans text-sm text-ink dark:text-cream md:inline">

@@ -23,7 +23,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Wardrobe.AI — Dress with intelligence",
+  title: "Tailored for you — Dress with intelligence",
   description: "See yourself in every outfit. Ask your stylist. Wear only what you own.",
 };
 

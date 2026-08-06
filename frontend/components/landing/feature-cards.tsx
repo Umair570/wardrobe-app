@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { cn } from "@/lib/utils";
 
 export function BeforeAfterSlider() {
@@ -30,10 +29,10 @@ export function BeforeAfterSlider() {
       onPointerUp={() => (dragging.current = false)}
     >
       <div className="absolute inset-0">
-        <ImagePlaceholder label="Original" rounded="rounded-none" />
+        <img src="/features/tryon_before.png" alt="Original" className="h-full w-full object-cover" />
       </div>
       <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}>
-        <ImagePlaceholder label="Styled on you" rounded="rounded-none" />
+        <img src="/features/tryon_after.png" alt="Styled on you" className="h-full w-full object-cover" />
       </div>
       <div
         className="absolute inset-y-0 z-10 w-0.5 bg-gold shadow-[0_0_8px_rgba(201,164,92,0.6)]"
@@ -58,9 +57,10 @@ interface FeatureCardProps {
   copy: string;
   index: number;
   rich?: boolean;
+  image?: string;
 }
 
-export function FeatureCard({ title, copy, index, rich }: FeatureCardProps) {
+export function FeatureCard({ title, copy, index, rich, image }: FeatureCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 22, scale: 0.97 }}
@@ -69,13 +69,18 @@ export function FeatureCard({ title, copy, index, rich }: FeatureCardProps) {
       whileHover={{ y: -6, scale: rich ? 1.01 : 1.02 }}
       transition={{ type: "spring", stiffness: 280, damping: 24, delay: index * 0.1 }}
       className={cn(
-        "rounded-lg bg-card p-8 shadow-[0_4px_20px_rgba(30,30,30,0.06)] transition-shadow hover:shadow-[0_12px_40px_rgba(30,30,30,0.1)] dark:hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)]",
+        "flex flex-col rounded-lg bg-card p-8 shadow-[0_4px_20px_rgba(30,30,30,0.06)] transition-shadow hover:shadow-[0_12px_40px_rgba(30,30,30,0.1)] dark:hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)]",
         rich && "md:row-span-1 ring-1 ring-gold/20"
       )}
     >
       <h3 className="mb-2 font-sans text-lg font-bold text-ink dark:text-cream">{title}</h3>
       <p className="font-sans text-[14.5px] leading-relaxed text-ink/62 dark:text-cream/60">{copy}</p>
       {rich && <BeforeAfterSlider />}
+      {!rich && image && (
+        <div className="relative mt-6 flex-1 overflow-hidden rounded-md">
+          <img src={image} alt={title} className="absolute inset-0 h-full w-full object-cover" />
+        </div>
+      )}
     </motion.div>
   );
 }
