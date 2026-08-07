@@ -57,16 +57,23 @@ function getGreeting(): string {
 
 export default function DashboardPage() {
   const { items, favorites, toggleFavorite } = useWardrobe();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [query, setQuery] = React.useState("");
   const [recs, setRecs] = React.useState<OutfitRecommendation[]>([]);
   const [activity, setActivity] = React.useState<ActivityEvent[]>([]);
   const [loadingRecs, setLoadingRecs] = React.useState(true);
   const [loadingActivity, setLoadingActivity] = React.useState(true);
 
-  const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "there";
+  const rawName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "there";
+  const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
   const router = useRouter();
+
+  React.useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/auth");
+    }
+  }, [user, loading, router]);
 
   React.useEffect(() => {
     getRecommendations()

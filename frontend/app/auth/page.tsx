@@ -50,13 +50,20 @@ export default function AuthPage() {
     setStatus("loading");
     setErrorMsg("");
 
-    const result = isLogin
-      ? await signIn(email, password)
-      : await signUp(email, password, name || undefined);
+    let result;
+    if (isLogin) {
+      result = await signIn(email, password);
+    } else {
+      result = await signUp(email, password, name || undefined);
+    }
 
     if (result.error) {
       setErrorMsg(result.error);
       setStatus("error");
+    } else if (!isLogin && !('session' in result ? result.session : true)) {
+      // If we signed up but got no session, email confirmation is required
+      setStatus("success");
+      setErrorMsg("Registration successful! Please check your email to verify your account.");
     } else {
       setStatus("success");
       // Small delay for the success animation, then redirect

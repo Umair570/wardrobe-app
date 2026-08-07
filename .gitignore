@@ -68,7 +68,7 @@ ml/test_images/*
 Thumbs.db
 
 # Images
-*.png
+# *.png
 *.jpg
 *.jpeg
 *.webp

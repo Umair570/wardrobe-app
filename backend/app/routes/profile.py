@@ -128,6 +128,10 @@ async def upload_body_photo(
 
     now = datetime.utcnow()
     
+    # Add a timestamp query param to force browsers to bypass cache
+    timestamp = int(now.timestamp())
+    cache_busted_url = f"{body_photo_url}?t={timestamp}"
+    
     # Upsert user profile document only if requested
     if save_profile:
         await users_collection.update_one(
@@ -136,7 +140,7 @@ async def upload_body_photo(
                 "$set": {
                     "user_id": current_user.id,
                     "email": current_user.email,
-                    "body_photo_url": body_photo_url,
+                    "body_photo_url": cache_busted_url,
                     "updated_at": now,
                 }
             },
@@ -147,15 +151,15 @@ async def upload_body_photo(
         return ProfileOut(
             user_id=current_user.id,
             email=current_user.email,
-            body_photo_url=body_photo_url,
+            body_photo_url=cache_busted_url,
             updated_at=now,
         )
 
-    logger.info("[profile] Body photo uploaded for user %s: %s", current_user.id, body_photo_url)
+    logger.info("[profile] Body photo uploaded for user %s: %s", current_user.id, cache_busted_url)
     return ProfileOut(
         user_id=current_user.id,
         email=current_user.email,
-        body_photo_url=body_photo_url,
+        body_photo_url=cache_busted_url,
         updated_at=now,
     )
 
