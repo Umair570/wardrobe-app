@@ -49,6 +49,12 @@ export default function ProfilePage() {
       .finally(() => setStatsLoading(false));
   }, []);
 
+  React.useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/auth");
+    }
+  }, [user, authLoading, router]);
+
   async function handleBodyUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
