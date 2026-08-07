@@ -534,12 +534,12 @@ Test configuration is in `pytest.ini`.
 
 ## 📄 License
 
-This project was developed as part of a NETSOL Technologies internship program by
+This project was developed as part of a NETSOL Technologies internship program by:
 
-Muhammad Umair Ashraf
-Mahad Abid
-Abdul Rehman
-Ayesha
+- **Muhammad Umair Ashraf**
+- **Mahad Abid**
+- **Abdul Rehman Ali**
+- **Ayesha Younus**
 
 ---
 
