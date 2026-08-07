@@ -26,7 +26,7 @@ export function AppNav() {
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink font-heading text-base font-semibold text-cream dark:bg-cream dark:text-ink">
           W
         </span>
-        <span className="font-sans text-[15px] font-bold text-ink dark:text-cream">Wardrobe.AI</span>
+        <span className="font-sans text-[15px] font-bold text-ink dark:text-cream">Tailored for you</span>
       </Link>
 
       <div className="flex flex-wrap items-center gap-5">

@@ -1,64 +1,110 @@
-import { apiFetch, USE_MOCKS } from "./client";
-import type { ClothingItem, OutfitRecommendation, SavedLook, ActivityEvent } from "@/types";
+import { apiFetch } from "./client";
+import type { ClothingItem, OutfitRecommendation, ActivityEvent } from "@/types";
 
-const MOCK_ITEMS: ClothingItem[] = [
-  { id: "necklace", name: "Brass Chain Necklace", category: "Accessory", colorHex: "#C9A45C", meta: "BRASS · OS · ALL SEASON" },
-  { id: "skirt", name: "Charcoal Wool Skirt", category: "Bottom", colorHex: "#2A2A2A", meta: "WOOL · S · AUTUMN" },
-  { id: "sneakers", name: "Canvas Court Sneakers", category: "Shoes", colorHex: "#F1EEE7", meta: "CANVAS · 9 · SUMMER" },
-  { id: "linenshirt", name: "Clay Linen Shirt", category: "Top", colorHex: "#B5502F", meta: "LINEN · M · SUMMER" },
-  { id: "trouser", name: "Sand Pleated Trouser", category: "Bottom", colorHex: "#D8CBA8", meta: "COTTON TWILL · 31 · SPRING" },
-  { id: "blouse", name: "Cream Silk Blouse", category: "Top", colorHex: "#F4EFE4", meta: "SILK · S · ALL SEASON" },
-  { id: "denim", name: "Indigo Straight Denim", category: "Bottom", colorHex: "#33415C", meta: "SELVEDGE DENIM · 31 · ALL SEASON" },
-  { id: "jacket", name: "Waxed Field Jacket", category: "Outerwear", colorHex: "#3E4635", meta: "WAXED COTTON · M · AUTUMN" },
-];
+// ---------------------------------------------------------------------------
+// Backend WardrobeItemOut shape (snake_case from FastAPI)
+// ---------------------------------------------------------------------------
+interface BackendItem {
+  id: string;
+  user_id?: string;
+  category?: string | null;
+  type?: string | null;
+  style?: string | null;
+  season?: string | null;
+  pattern?: string | null;
+  color?: string | null;
+  tags?: string[];
+  image_url?: string | null;
+  segmentation_path?: string | null;
+  area_ratio?: number | null;
+  uploaded_at?: string | null;
+}
 
-const MOCK_RECS: OutfitRecommendation[] = [
-  { id: "brunch", title: "Weekend brunch", match: 94 },
-  { id: "meeting", title: "Client meeting", match: 89 },
-  { id: "evening", title: "Evening out", match: 97 },
-];
+// Simple name-safe colour map for colorHex
+const COLOR_HEX_MAP: Record<string, string> = {
+  red: "#C0392B", blue: "#2980B9", green: "#27AE60", black: "#1E1E1E",
+  white: "#F4EFE4", navy: "#33415C", grey: "#7F8C8D", gray: "#7F8C8D",
+  brown: "#8B4513", beige: "#D8CBA8", cream: "#F4EFE4", pink: "#E91E7B",
+  orange: "#E67E22", yellow: "#F1C40F", purple: "#8E44AD", gold: "#C9A45C",
+  tan: "#D2B48C", olive: "#3E4635", maroon: "#800000", indigo: "#33415C",
+  charcoal: "#2A2A2A", sand: "#D8CBA8", clay: "#B5502F", khaki: "#C3B091",
+};
 
-const MOCK_LOOKS: SavedLook[] = [
-  { id: "weekend", name: "Weekend brunch", tag: "WEEKEND", favorited: true, images: [] },
-  { id: "meeting", name: "Client meeting", tag: "WORK", images: [] },
-  { id: "dinner", name: "Rooftop dinner", tag: "EVENING", favorited: true, images: [] },
-  { id: "commute", name: "Rainy commute", tag: "WORK", images: [] },
-  { id: "gallery", name: "Gallery opening", tag: "EVENING", images: [] },
-  { id: "errands", name: "Saturday errands", tag: "WEEKEND", images: [] },
-];
+function toColorHex(color?: string | null): string {
+  if (!color) return "#7F8C8D";
+  const lower = color.toLowerCase().trim();
+  // Check for direct match
+  if (COLOR_HEX_MAP[lower]) return COLOR_HEX_MAP[lower];
+  // Check if color name appears as part of a compound like "dark blue"
+  for (const [name, hex] of Object.entries(COLOR_HEX_MAP)) {
+    if (lower.includes(name)) return hex;
+  }
+  // If it looks like a hex already
+  if (lower.startsWith("#")) return lower;
+  return "#7F8C8D";
+}
 
-const MOCK_ACTIVITY: ActivityEvent[] = [
-  { id: "1", label: "Added **Cashmere Sweater** to your closet", timestamp: "2h ago", kind: "add" },
-  { id: "2", label: "Asked stylist for a **rooftop dinner** outfit", timestamp: "Yesterday", kind: "query" },
-  { id: "3", label: "Favorited **Silk Slip Dress**", timestamp: "2 days ago", kind: "favorite" },
-];
+function capitalize(s?: string | null): string {
+  if (!s) return "";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Transform a backend WardrobeItemOut into the frontend ClothingItem shape.
+ */
+function backendToClothingItem(item: BackendItem): ClothingItem {
+  const name = capitalize(item.type) || capitalize(item.category) || "Garment";
+  const metaParts = [
+    item.color?.toUpperCase(),
+    item.style?.toUpperCase(),
+    item.season?.toUpperCase(),
+  ].filter(Boolean);
+
+  return {
+    id: item.id,
+    name,
+    category: capitalize(item.category) || "Top",
+    colorHex: toColorHex(item.color),
+    meta: metaParts.join(" · ") || "GARMENT",
+    imageUrl: item.segmentation_path || item.image_url || undefined,
+    type: item.type,
+    style: item.style,
+    season: item.season,
+    pattern: item.pattern,
+    color: item.color,
+    tags: item.tags || [],
+    segmentationPath: item.segmentation_path,
+  };
+}
+
 
 export async function getClothingItems(): Promise<ClothingItem[]> {
-  if (USE_MOCKS) return MOCK_ITEMS;
-  return apiFetch<ClothingItem[]>("/wardrobe/items");
+  const data = await apiFetch<BackendItem[]>("/wardrobe/");
+  return data.map(backendToClothingItem);
 }
 
 export async function getRecommendations(): Promise<OutfitRecommendation[]> {
-  if (USE_MOCKS) return MOCK_RECS;
   return apiFetch<OutfitRecommendation[]>("/wardrobe/recommendations");
 }
 
-export async function getSavedLooks(): Promise<SavedLook[]> {
-  if (USE_MOCKS) return MOCK_LOOKS;
-  return apiFetch<SavedLook[]>("/wardrobe/saved-looks");
-}
-
 export async function getActivity(): Promise<ActivityEvent[]> {
-  if (USE_MOCKS) return MOCK_ACTIVITY;
-  return apiFetch<ActivityEvent[]>("/wardrobe/activity");
+  return apiFetch<ActivityEvent[]>("/activity/");
 }
 
-export async function uploadGarment(file: File): Promise<{ ok: boolean; taggedName?: string }> {
-  if (USE_MOCKS) {
-    await new Promise((r) => setTimeout(r, 800));
-    return { ok: true, taggedName: "Navy Cotton Tee" };
-  }
+export async function deleteItem(itemId: string): Promise<void> {
+  await apiFetch(`/wardrobe/${itemId}`, { method: "DELETE" });
+}
+
+export async function uploadGarment(file: File): Promise<BackendItem[]> {
   const form = new FormData();
   form.append("file", file);
-  return apiFetch("/wardrobe/upload", { method: "POST", body: form });
+  return apiFetch<BackendItem[]>("/upload/", { method: "POST", body: form });
+}
+
+export async function getWardrobeStats(): Promise<{
+  items_in_closet: number;
+  looks_saved: number;
+  stylist_queries: number;
+}> {
+  return apiFetch("/wardrobe/stats");
 }

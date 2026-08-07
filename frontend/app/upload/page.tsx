@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { UploadCloud, Check, Loader2 } from "lucide-react";
+import { UploadCloud, Check, Loader2, AlertCircle } from "lucide-react";
 import { AppNav } from "@/components/layout/app-nav";
 import { Button } from "@/components/ui/button";
-import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { cn } from "@/lib/utils";
 import { uploadGarment } from "@/lib/api/wardrobe";
+import { useWardrobe } from "@/hooks/use-wardrobe";
 
 type Mode = "single" | "multi" | "outfit";
 type DropState = "idle" | "drag-active" | "uploading" | "processing" | "success" | "error";
@@ -25,35 +25,57 @@ export default function UploadPage() {
   const [dropState, setDropState] = React.useState<DropState>("idle");
   const [progress, setProgress] = React.useState(0);
   const [resultText, setResultText] = React.useState("");
+  const [resultItems, setResultItems] = React.useState<Array<{ category?: string | null; type?: string | null; color?: string | null }>>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const { refresh } = useWardrobe();
 
-  async function handleChoosePhoto() {
+  async function handleFile(file: File) {
+    if (!file || !file.type.startsWith("image/")) {
+      setResultText("Please select a JPEG or PNG image.");
+      setDropState("error");
+      return;
+    }
+
     setDropState("uploading");
     setProgress(0);
     const interval = setInterval(() => {
-      setProgress((p) => Math.min(p + 12, 90));
-    }, 120);
+      setProgress((p) => Math.min(p + 8, 85));
+    }, 200);
 
-    await new Promise((r) => setTimeout(r, 800));
-    clearInterval(interval);
-    setProgress(100);
-    setDropState("processing");
+    try {
+      setDropState("processing");
+      const items = await uploadGarment(file);
+      clearInterval(interval);
+      setProgress(100);
 
-    const res = await uploadGarment(new File([], "mock.jpg"));
-    await new Promise((r) => setTimeout(r, 600));
-
-    if (res.ok) {
-      setResultText(`Garment tagged: ${res.taggedName}.`);
-      setDropState("success");
-    } else {
-      setResultText("Scan failed — try better lighting.");
+      if (items && items.length > 0) {
+        const names = items.map((i: any) => i.type || i.category || "Garment").join(", ");
+        setResultText(`Tagged ${items.length} garment(s): ${names}`);
+        setResultItems(items);
+        setDropState("success");
+        // Refresh the wardrobe so new items appear everywhere
+        refresh();
+      } else {
+        setResultText("No garments detected. Try a clearer photo.");
+        setDropState("error");
+      }
+    } catch (err: unknown) {
+      clearInterval(interval);
+      const message = err instanceof Error ? err.message : "Upload failed";
+      setResultText(message);
       setDropState("error");
     }
   }
 
-  function handleSimulateFail() {
-    setDropState("error");
-    setResultText("Scan failed — try better lighting.");
+  function handleChoosePhoto() {
+    fileInputRef.current?.click();
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+    // Reset input so the same file can be selected again
+    e.target.value = "";
   }
 
   function handleDragOver(e: React.DragEvent) {
@@ -67,7 +89,8 @@ export default function UploadPage() {
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
-    handleChoosePhoto();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
   }
 
   const isBusy = dropState === "uploading" || dropState === "processing";
@@ -139,15 +162,19 @@ export default function UploadPage() {
                     <Check className="h-8 w-8 text-forest dark:text-[#8fbfa4]" strokeWidth={2} />
                   </motion.div>
                   <p className="mb-4 font-sans text-sm font-semibold text-forest dark:text-[#8fbfa4]">{resultText}</p>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="h-32 w-24 overflow-hidden rounded-lg shadow-lg"
-                  >
-                    <ImagePlaceholder label="Added" />
-                  </motion.div>
-                  <Button className="mt-6" variant="secondary" size="sm" onClick={() => setDropState("idle")}>
+                  {resultItems.length > 0 && (
+                    <div className="mb-4 flex flex-wrap justify-center gap-2">
+                      {resultItems.map((item, i) => (
+                        <span
+                          key={i}
+                          className="rounded-full bg-forest/10 px-3 py-1.5 font-mono text-[10px] tracking-wide text-forest dark:bg-[#8fbfa4]/15 dark:text-[#8fbfa4]"
+                        >
+                          {item.type || item.category} · {item.color || "—"}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <Button className="mt-2" variant="secondary" size="sm" onClick={() => { setDropState("idle"); setResultItems([]); }}>
                     Upload another
                   </Button>
                 </motion.div>
@@ -189,19 +216,25 @@ export default function UploadPage() {
                     <Button onClick={handleChoosePhoto} disabled={isBusy}>
                       Choose photo
                     </Button>
-                    <Button variant="outline" onClick={handleSimulateFail}>
-                      Simulate failed scan
-                    </Button>
                   </div>
                   {dropState === "error" && (
-                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-5 font-sans text-[13.5px] font-semibold text-[#B5502F]">
-                      {resultText}
-                    </motion.p>
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-5 flex items-center justify-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-[#B5502F]" />
+                      <p className="font-sans text-[13.5px] font-semibold text-[#B5502F]">
+                        {resultText}
+                      </p>
+                    </motion.div>
                   )}
                 </motion.div>
               )}
             </AnimatePresence>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </motion.div>
 
           <div className="rounded-lg bg-card p-6 shadow-[0_4px_16px_rgba(30,30,30,0.06)]">

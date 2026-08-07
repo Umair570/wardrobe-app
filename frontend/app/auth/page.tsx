@@ -2,14 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { useAuth } from "@/context/auth-provider";
 
 type Mode = "login" | "register";
-type Status = "idle" | "loading" | "success";
+type Status = "idle" | "loading" | "success" | "error";
 
 const formVariants = {
   enter: (direction: number) => ({ x: direction > 0 ? 24 : -24, opacity: 0 }),
@@ -21,19 +23,45 @@ export default function AuthPage() {
   const [mode, setMode] = React.useState<Mode>("login");
   const [status, setStatus] = React.useState<Status>("idle");
   const [direction, setDirection] = React.useState(0);
+  const [errorMsg, setErrorMsg] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [name, setName] = React.useState("");
   const reduced = useReducedMotion();
   const isLogin = mode === "login";
+  const router = useRouter();
+  const { signIn, signUp, user } = useAuth();
+
+  // Redirect if already logged in
+  React.useEffect(() => {
+    if (user) router.replace("/dashboard");
+  }, [user, router]);
 
   function switchMode(next: Mode) {
     setDirection(next === "register" ? 1 : -1);
     setMode(next);
+    setErrorMsg("");
+    setStatus("idle");
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (status !== "idle") return;
+    if (status === "loading") return;
     setStatus("loading");
-    setTimeout(() => setStatus("success"), 800);
+    setErrorMsg("");
+
+    const result = isLogin
+      ? await signIn(email, password)
+      : await signUp(email, password, name || undefined);
+
+    if (result.error) {
+      setErrorMsg(result.error);
+      setStatus("error");
+    } else {
+      setStatus("success");
+      // Small delay for the success animation, then redirect
+      setTimeout(() => router.push("/dashboard"), 600);
+    }
   }
 
   return (
@@ -131,7 +159,11 @@ export default function AuthPage() {
                             <label className="mb-1.5 block font-mono text-[11px] tracking-wide text-ink/50 dark:text-cream/50">
                               NAME
                             </label>
-                            <Input placeholder="Your name" required />
+                            <Input
+                              placeholder="Your name"
+                              value={name}
+                              onChange={(e) => setName(e.target.value)}
+                            />
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -139,14 +171,37 @@ export default function AuthPage() {
                         <label className="mb-1.5 block font-mono text-[11px] tracking-wide text-ink/50 dark:text-cream/50">
                           EMAIL
                         </label>
-                        <Input type="email" placeholder="you@example.com" required />
+                        <Input
+                          type="email"
+                          placeholder="you@example.com"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
                       </div>
                       <div>
                         <label className="mb-1.5 block font-mono text-[11px] tracking-wide text-ink/50 dark:text-cream/50">
                           PASSWORD
                         </label>
-                        <Input type="password" placeholder="••••••••" required />
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                        />
                       </div>
+
+                      {errorMsg && (
+                        <motion.p
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="font-sans text-[13px] font-semibold text-[#B5502F]"
+                        >
+                          {errorMsg}
+                        </motion.p>
+                      )}
+
                       <Button type="submit" size="lg" className="mt-1 w-full justify-center" disabled={status === "loading"}>
                         {status === "loading" ? "One moment…" : isLogin ? "Log in" : "Register"}
                       </Button>

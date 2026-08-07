@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, ChevronDown } from "lucide-react";
 import { AppNav } from "@/components/layout/app-nav";
 import { ClothingCard } from "@/components/wardrobe/clothing-card";
+import { ItemDetailsModal } from "@/components/wardrobe/item-details-modal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,8 +13,9 @@ import { useWardrobe } from "@/hooks/use-wardrobe";
 import { cn } from "@/lib/utils";
 
 export default function WardrobePage() {
-  const { items, favorites, toggleFavorite, loading } = useWardrobe();
+  const { items, favorites, toggleFavorite, removeItem, loading } = useWardrobe();
   const [search, setSearch] = React.useState("");
+  const [selectedItem, setSelectedItem] = React.useState<any>(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
@@ -104,11 +106,15 @@ export default function WardrobePage() {
                     item={item}
                     favorited={!!favorites[item.id]}
                     onToggleFavorite={() => toggleFavorite(item.id)}
+                    onDelete={() => removeItem(item.id)}
+                    onClick={() => setSelectedItem(item)}
                     showColorDot
                   />
                 </motion.div>
               ))}
         </div>
+
+        <ItemDetailsModal item={selectedItem} onClose={() => setSelectedItem(null)} />
       </div>
     </div>
   );

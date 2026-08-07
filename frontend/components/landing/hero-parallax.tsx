@@ -2,14 +2,13 @@
 
 import * as React from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { ImagePlaceholder } from "@/components/ui/image-placeholder";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 const OUTFIT_CARDS = [
-  { label: "Evening look", rotate: -8, x: -20, y: 10, z: 1, delay: 0.2 },
-  { label: "Office edit", rotate: 5, x: 40, y: -30, z: 2, delay: 0.35 },
-  { label: "Weekend casual", rotate: -3, x: -10, y: 60, z: 3, delay: 0.5 },
-  { label: "Date night", rotate: 10, x: 50, y: 40, z: 4, delay: 0.65 },
+  { label: "Evening look", rotate: -8, x: -20, y: 10, z: 1, delay: 0.2, image: "/hero/evening_look.png" },
+  { label: "Office edit", rotate: 5, x: 40, y: -30, z: 2, delay: 0.35, image: "/hero/office_edit.png" },
+  { label: "Weekend casual", rotate: -3, x: -10, y: 60, z: 3, delay: 0.5, image: "/hero/weekend_casual.png" },
+  { label: "Date night", rotate: 10, x: 50, y: 40, z: 4, delay: 0.65, image: "/hero/date_night.png" },
 ];
 
 export function HeroParallax() {
@@ -103,9 +102,12 @@ function FloatingCard({
       <motion.div
         animate={reduced ? {} : { y: [0, -8, 0] }}
         transition={{ duration: 4 + index * 0.5, repeat: Infinity, ease: "easeInOut", delay: index * 0.3 }}
-        className="h-full w-full overflow-hidden rounded-2xl border border-white/60 bg-white/70 shadow-2xl backdrop-blur-md dark:border-white/10 dark:bg-white/[0.08]"
+        className="relative h-full w-full overflow-hidden rounded-2xl border border-white/60 shadow-2xl dark:border-white/10"
       >
-        <ImagePlaceholder label={card.label} rounded="rounded-none" />
+        <img src={card.image} alt={card.label} className="h-full w-full object-cover" />
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+          <p className="font-sans text-sm font-medium text-white">{card.label}</p>
+        </div>
       </motion.div>
     </motion.div>
   );

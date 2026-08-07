@@ -34,21 +34,30 @@ from ml.classification.model import (
     STYLE_MAP,
     SEASON_LABELS,
     SEASON_MAP,
+    SEASON_OVERRIDE,
     PATTERN_LABELS,
     PATTERN_MAP,
     COLOR_NAMES,
+    labels_for_region,
 )
 
 
 def _load_rgba_image(image_path: str) -> tuple[Image.Image, np.ndarray]:
     """
-    Load a transparent PNG. Returns (PIL Image in RGB, alpha mask as uint8 ndarray).
-    If the image has no alpha channel, assumes fully opaque.
+    Load a transparent PNG. Returns (composited RGB image, alpha mask as uint8).
+
+    `.convert("RGB")` would merely DISCARD the alpha channel, leaving the
+    original background pixels visible underneath the cutout — CLIP would then
+    classify the scene rather than the garment. Compositing over a neutral grey
+    removes the background for real, matching the product-shot distribution
+    FashionCLIP was trained on.
     """
     img = Image.open(image_path).convert("RGBA")
     arr = np.array(img)
     alpha = arr[:, :, 3]
-    rgb = img.convert("RGB")
+
+    backdrop = Image.new("RGBA", img.size, (240, 240, 240, 255))
+    rgb = Image.alpha_composite(backdrop, img).convert("RGB")
     return rgb, alpha
 
 
@@ -56,9 +65,19 @@ def _clip_zero_shot(image: Image.Image, candidate_labels: list[str]) -> tuple[st
     """
     Run CLIP zero-shot classification on an image against candidate labels.
     Returns (best_label, best_score, all_scores_dict).
+
+    Bare nouns ("polo shirt") sit off-distribution for CLIP's text tower, which
+    was trained on captions. Short label banks are therefore wrapped in the
+    standard "a photo of a …" template; long descriptive prompts (style, season,
+    pattern) are already sentence-shaped and are passed through untouched.
     """
+    prompts = [
+        lbl if len(lbl.split()) > 4 else f"a photo of a {lbl}"
+        for lbl in candidate_labels
+    ]
+
     inputs = CLIP_CLASSIFIER_PROCESSOR(
-        text=candidate_labels,
+        text=prompts,
         images=image,
         return_tensors="pt",
         padding=True,
@@ -82,66 +101,83 @@ def _clip_zero_shot(image: Image.Image, candidate_labels: list[str]) -> tuple[st
 def _extract_dominant_color(image_np_rgb: np.ndarray, alpha: np.ndarray, n_clusters: int = 5) -> str:
     """
     Extract the dominant color name from non-transparent foreground pixels.
-    
+
     Strategy:
-      1. KMeans cluster the foreground pixels into n groups
-      2. Pick the cluster with the HIGHEST saturation (most chromatic/vibrant)
-         → This prevents washed-out denim from averaging to "gray"
-      3. For genuinely achromatic items (black/white/gray), fall back to the largest cluster
-      4. Map the winning cluster center to the nearest named color
+      1. KMeans cluster the foreground pixels into n groups.
+      2. Discard clusters that are just shadow — materially darker than the
+         garment as a whole — unless the garment is genuinely dark throughout.
+      3. Among what survives, pick the cluster covering the most fabric.
+      4. Map the winning cluster center to the nearest named color.
+
+    Picking the *most saturated* cluster instead (as this once did) reliably
+    fails on pale garments: a pale pink coat's shadowed folds are far more
+    saturated than its lit face, so the shadow wins and the coat reads "coffee".
+    Fabric area is the honest signal; shadow rejection is what protects it.
     """
-    # Get only foreground pixels (alpha > 128)
-    fg_mask = alpha > 128
-    fg_pixels = image_np_rgb[fg_mask]
+    # Alpha > 200 keeps feathered edge pixels (part background) out of the vote.
+    fg_pixels = image_np_rgb[alpha > 200]
 
     if len(fg_pixels) < 10:
         return "unknown"
 
-    # Subsample for speed (max 8000 pixels for better accuracy)
     if len(fg_pixels) > 8000:
         indices = np.random.choice(len(fg_pixels), 8000, replace=False)
         fg_pixels = fg_pixels[indices]
 
-    # KMeans to find dominant color clusters
     fg_float = fg_pixels.astype(np.float32)
     actual_clusters = min(n_clusters, len(fg_pixels))
     kmeans = KMeans(n_clusters=actual_clusters, n_init=5, random_state=42)
     kmeans.fit(fg_float)
 
-    centers = kmeans.cluster_centers_          # (n_clusters, 3) in RGB
-    counts  = np.bincount(kmeans.labels_)      # pixel count per cluster
+    centers = kmeans.cluster_centers_                        # (k, 3) RGB
+    counts = np.bincount(kmeans.labels_, minlength=actual_clusters)
+    volumes = counts.astype(np.float32) / max(counts.sum(), 1)
 
-    # Convert cluster centers to HSV to measure saturation
+    # Perceptual lightness (CIE L*) of each cluster and of the garment overall.
     centers_uint8 = np.clip(centers, 0, 255).astype(np.uint8).reshape(1, -1, 3)
-    centers_hsv   = cv2.cvtColor(centers_uint8, cv2.COLOR_RGB2HSV).reshape(-1, 3)
-    
-    # Saturation values (0-255 scale in OpenCV HSV)
-    saturations = centers_hsv[:, 1].astype(np.float32)
+    centers_lab = cv2.cvtColor(centers_uint8, cv2.COLOR_RGB2LAB).reshape(-1, 3)
+    center_lightness = centers_lab[:, 0].astype(np.float32)
 
-    # Decide strategy: if ANY cluster has decent saturation (>30), pick the most saturated
-    # Otherwise the item is genuinely achromatic — pick the largest cluster
-    SATURATION_THRESHOLD = 30
+    fg_lab = cv2.cvtColor(
+        fg_pixels.reshape(1, -1, 3).astype(np.uint8), cv2.COLOR_RGB2LAB
+    ).reshape(-1, 3)
+    garment_lightness = float(np.median(fg_lab[:, 0]))
 
-    if np.max(saturations) > SATURATION_THRESHOLD:
-        # Weight by saturation AND cluster size so tiny bright noise doesn't win
-        # Score = saturation * sqrt(pixel_count)  — rewards vibrant + large clusters
-        scores = saturations * np.sqrt(counts.astype(np.float32))
-        best_idx = int(np.argmax(scores))
-    else:
-        # Achromatic item (black/white/gray) — just pick the biggest cluster
-        best_idx = int(np.argmax(counts))
+    DARK_GARMENT_L = 60          # Below this the item really is dark (OpenCV L* is 0-255)
+    SHADOW_RATIO = 0.70          # Clusters below this share of overall lightness are shadow
+    MIN_VOLUME = 0.05            # Ignore slivers
 
-    dominant_rgb = centers[best_idx]
-    return _nearest_color_name(dominant_rgb)
+    candidates = [i for i in range(actual_clusters) if volumes[i] >= MIN_VOLUME]
+    if not candidates:
+        candidates = list(range(actual_clusters))
+
+    # For a genuinely dark garment every cluster is dark, so shadow rejection
+    # would throw away the real colour. Only apply it to mid/light garments.
+    if garment_lightness >= DARK_GARMENT_L:
+        lit = [i for i in candidates if center_lightness[i] >= garment_lightness * SHADOW_RATIO]
+        if lit:
+            candidates = lit
+
+    best_idx = max(candidates, key=lambda i: volumes[i])
+    return _nearest_color_name(centers[best_idx])
 
 
 def _nearest_color_name(rgb: np.ndarray) -> str:
-    """Map an RGB triplet to the nearest named color using Euclidean distance."""
+    """Map an RGB triplet to the nearest named color using CIE Lab perceptual distance."""
+    # Convert input RGB to Lab
+    rgb_uint8 = np.uint8([[[rgb[0], rgb[1], rgb[2]]]])
+    lab_pixel = cv2.cvtColor(rgb_uint8, cv2.COLOR_RGB2LAB)[0][0]
+    
     min_dist = float("inf")
     best_name = "unknown"
 
     for name, ref_rgb in COLOR_NAMES.items():
-        dist = np.sqrt(np.sum((rgb - np.array(ref_rgb, dtype=np.float32)) ** 2))
+        ref_uint8 = np.uint8([[[ref_rgb[0], ref_rgb[1], ref_rgb[2]]]])
+        ref_lab = cv2.cvtColor(ref_uint8, cv2.COLOR_RGB2LAB)[0][0]
+        
+        # Standard Euclidean distance in perceptual LAB space (Delta-E CIE76)
+        dist = np.sqrt(np.sum((lab_pixel.astype(np.float32) - ref_lab.astype(np.float32)) ** 2))
+        
         if dist < min_dist:
             min_dist = dist
             best_name = name
@@ -149,15 +185,20 @@ def _nearest_color_name(rgb: np.ndarray) -> str:
     return best_name
 
 
-def classify_item(image_path: str) -> dict:
+def classify_item(image_path: str, region: str | None = None) -> dict:
     """
     Classify a single segmented clothing item.
 
     Args:
         image_path: Path to a transparent PNG from the segmentation pipeline.
+        region:     Body region the cutout came from ("top", "bottom", "shoes",
+                    "bag", "headwear", "dress"). Constrains the label bank so a
+                    shoe crop can never be scored against "blouse". None or
+                    "garment" (flat-lay) scores against every label.
 
     Returns:
-        Dictionary with keys: category, type, style, color, confidence, tags
+        Dictionary with keys: category, type, style, season, pattern, color,
+        confidence, tags, region
     """
     path = Path(image_path)
     if not path.exists():
@@ -167,9 +208,10 @@ def classify_item(image_path: str) -> dict:
     rgb_image, alpha = _load_rgba_image(image_path)
 
     # ── Step 1: Category + Type (one CLIP call) ──────────────────────────────
-    # CLIP classifies against all granular labels at once
-    # The best match gives us both the specific type AND the broad category via CATEGORY_MAP
-    best_type, type_conf, all_type_scores = _clip_zero_shot(rgb_image, CATEGORY_LABELS)
+    # CLIP scores the crop against every label the region can plausibly contain.
+    # The best match gives us both the specific type AND the broad category.
+    candidate_labels = labels_for_region(region)
+    best_type, type_conf, all_type_scores = _clip_zero_shot(rgb_image, candidate_labels)
 
     category = CATEGORY_MAP.get(best_type, best_type)
 
@@ -177,8 +219,12 @@ def classify_item(image_path: str) -> dict:
     best_style_raw, style_conf, _ = _clip_zero_shot(rgb_image, STYLE_LABELS)
     style = STYLE_MAP.get(best_style_raw, best_style_raw)
 
-    best_season_raw, season_conf, _ = _clip_zero_shot(rgb_image, SEASON_LABELS)
-    season = SEASON_MAP.get(best_season_raw, best_season_raw)
+    if best_type in SEASON_OVERRIDE:
+        season = SEASON_OVERRIDE[best_type]
+        season_conf = 1.0  # Hardware override
+    else:
+        best_season_raw, season_conf, _ = _clip_zero_shot(rgb_image, SEASON_LABELS)
+        season = SEASON_MAP.get(best_season_raw, best_season_raw)
 
     best_pattern_raw, pattern_conf, _ = _clip_zero_shot(rgb_image, PATTERN_LABELS)
     pattern = PATTERN_MAP.get(best_pattern_raw, best_pattern_raw)
@@ -188,14 +234,7 @@ def classify_item(image_path: str) -> dict:
     color = _extract_dominant_color(rgb_np, alpha)
 
     # ── Step 4: Auto-generate tags ────────────────────────────────────────────
-    tags = list(set([
-        category,
-        best_type,
-        style,
-        season,
-        pattern,
-        color,
-    ]))
+    tags = list({t for t in (category, best_type, style, season, pattern, color) if t})
     tags.sort()
 
     result = {
@@ -205,6 +244,7 @@ def classify_item(image_path: str) -> dict:
         "season":     season,
         "pattern":    pattern,
         "color":      color,
+        "region":     region or "garment",
         "confidence": {
             "category": round(type_conf, 4),
             "type":     round(type_conf, 4),

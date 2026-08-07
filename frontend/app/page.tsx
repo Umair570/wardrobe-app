@@ -17,8 +17,8 @@ const FEATURES = [
     copy: "See any outfit on your own body before you wear it.",
     rich: true,
   },
-  { title: "AI stylist", copy: "Ask anything. Get outfits pulled from your own wardrobe." },
-  { title: "One closet, sorted", copy: "Everything you own, organized automatically." },
+  { title: "AI stylist", copy: "Ask anything. Get outfits pulled from your own wardrobe.", image: "/features/ai_stylist.png" },
+  { title: "One closet, sorted", copy: "Everything you own, organized automatically.", image: "/features/closet_sorted.png" },
 ];
 
 const STATS = [
@@ -43,7 +43,7 @@ export default function LandingPage() {
           transition={{ duration: 0.8 }}
         >
           <span className="mb-6 inline-block rounded-full bg-forest/10 px-3.5 py-1.5 font-sans text-xs font-medium uppercase tracking-widest text-forest dark:bg-forest/20 dark:text-[#8fbfa4]">
-            AI Wardrobe
+            Tailored for you
           </span>
           <h1 className="font-heading text-[clamp(42px,5vw,68px)] font-semibold leading-[1.06] tracking-tight text-ink dark:text-cream">
             Dress with
@@ -104,7 +104,7 @@ export default function LandingPage() {
       <section id="features" className="mx-auto max-w-6xl px-6 pb-20 md:px-12">
         <div className="grid gap-7 md:grid-cols-3">
           {FEATURES.map((f, i) => (
-            <FeatureCard key={f.title} title={f.title} copy={f.copy} index={i} rich={f.rich} />
+            <FeatureCard key={f.title} title={f.title} copy={f.copy} index={i} rich={f.rich} image={f.image} />
           ))}
         </div>
       </section>
